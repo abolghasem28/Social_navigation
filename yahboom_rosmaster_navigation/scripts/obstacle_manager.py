@@ -48,7 +48,7 @@ class ObstacleManager(Node):
         # hee we can defien different radius for each obstacle in order to with type of goal we are looking
         # self.add_obstacle(x=3.0, y=2.0, radius=1.0)
         # # 
-        self.add_obstacle(x=1.06, y=2, radius=0.8)
+        #self.add_obstacle(x=1.06, y=2, radius=0.8)
         # self.add_obstacle(x=-1.0, y=1.03, radius=0.5)
         #self.add_obstacle(x=-0.5, y=-7.2, radius=0.6)
         # #

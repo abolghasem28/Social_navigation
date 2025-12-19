@@ -42,6 +42,7 @@ install(PROGRAMS
   scripts/nav_to_pose.py
   scripts/test_nav_to_pose.py
   scripts/obstacle_manager.py
+  scripts/social_navigation.py
   DESTINATION lib/${PROJECT_NAME}
 )
 
