@@ -11,6 +11,7 @@ Gazebo world files — updated to simulate environments where social navigation 
 Foundation model integration — added modules and hooks to connect large‑scale AI models for perception and planning.
 
 The goal of these edits is to provide a robust platform for experimenting with ROS 2 social navigation, combining the standard navigation stack with modern AI approaches.
+![alt text](image.png)
 
 ![ROSMASTER X3 in Gazebo](https://automaticaddison.com/wp-content/uploads/2024/11/gazebo-800-square-mecanum-controller.gif)
 
