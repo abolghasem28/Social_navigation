@@ -142,12 +142,12 @@ class GeminiSocialNavigator(Node):
         
         # ============ STARTUP MESSAGE ============
         self.get_logger().info('=' * 70)
-        self.get_logger().info('🤖 GEMINI SOCIAL NAVIGATOR v2.0 - ENHANCED DISTANCE ESTIMATION')
+        self.get_logger().info(' GEMINI SOCIAL NAVIGATOR v2.0 - ENHANCED DISTANCE ESTIMATION')
         self.get_logger().info('=' * 70)
-        self.get_logger().info(f'📷 Camera topic: {camera_topic}')
-        self.get_logger().info(f'📏 Depth topic: {depth_topic}')
-        self.get_logger().info(f'📡 LiDAR topic: {lidar_topic}')
-        self.get_logger().info(f'🎯 Distance method: {self.distance_method.upper()}')
+        self.get_logger().info(f' Camera topic: {camera_topic}')
+        self.get_logger().info(f' Depth topic: {depth_topic}')
+        self.get_logger().info(f' LiDAR topic: {lidar_topic}')
+        self.get_logger().info(f' Distance method: {self.distance_method.upper()}')
         self.get_logger().info('')
         self.get_logger().info('Distance Estimation Methods:')
         self.get_logger().info('  gemini → Categorical (±1-2m accuracy)')
@@ -595,7 +595,7 @@ If no humans: {"humans_detected": false, "humans": []}
             
             if result.get('humans_detected', False):
                 humans = result.get('humans', [])
-                self.get_logger().info(f'👁️  Detected {len(humans)} human(s)')
+                self.get_logger().info(f' Detected {len(humans)} human(s)')
                 self._create_obstacles_from_detections(humans, robot_pose)
             else:
                 self.get_logger().debug('No humans detected')
