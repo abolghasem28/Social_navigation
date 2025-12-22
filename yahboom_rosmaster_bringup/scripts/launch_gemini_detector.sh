@@ -4,7 +4,7 @@
 # Usage: ./launch_gemini_detector.sh (No argument needed if key is hardcoded)
 
 # --- HARDCODED KEY ---
-API_KEY="AIzaSyB4MhNyivX5GsBXW8TouTOh6uZRS5MRRww"
+API_KEY="YOUR_GEMINI_API_KEY_HERE"
 # ---------------------
 
 # --- REMOVE THIS INITIAL CHECK BLOCK ---
