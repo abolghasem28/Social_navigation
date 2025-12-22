@@ -4,7 +4,7 @@
 # Usage: ./launch_gemini_detector.sh (No argument needed if key is hardcoded)
 
 # --- HARDCODED KEY ---
-API_KEY="YOUR_GEMINI_API_KEY should be placed here"
+API_KEY="AIzaSyB4MhNyivX5GsBXW8TouTOh6uZRS5MRRww"
 # ---------------------
 
 # --- REMOVE THIS INITIAL CHECK BLOCK ---
@@ -33,8 +33,9 @@ python3 /home/aesmaeily/ros2_ws/src/yahboom_rosmaster/yahboom_rosmaster_navigati
     --ros-args \
     -p gemini_api_key:="$API_KEY" \
     -p camera_topic:=/cam_1/color/image_raw \
-    -p human_detection_distance:=1.0 \
-    -p check_frequency:=5.0
+    -p distance_method:="fusion" \
+    # -p human_detection_distance:=1.0 \
+    # -p check_frequency:=5.0
     
     #  -p gemini_analysis_delay:=3.0 \
    # -p scan_topic:=/scan \
