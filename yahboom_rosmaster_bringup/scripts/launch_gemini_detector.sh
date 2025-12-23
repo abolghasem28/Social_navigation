@@ -28,7 +28,7 @@ echo ""
 #source /opt/ros/jazzy/setup.bash
 
 # Run the node
-#python3 /home/aesmaeily/ros2_ws/src/yahboom_rosmaster/yahboom_rosmaster_navigation/scripts/social_navigation_node.py \
+#python3 /home/aesmaeily/ros2_ws/src/yahboom_rosmaster/yahboom_rosmaster_navigation/scripts/social_navigation_accuracy.py \
 python3 /home/aesmaeily/ros2_ws/src/yahboom_rosmaster/yahboom_rosmaster_navigation/scripts/social_navigation.py \
     --ros-args \
     -p gemini_api_key:="$API_KEY" \
