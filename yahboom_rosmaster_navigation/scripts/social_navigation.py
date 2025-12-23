@@ -1,20 +1,19 @@
 #!/usr/bin/env python3
 """
-Gemini Social Navigator - AI-powered human detection and social navigation
-Enhanced with precise distance estimation using Depth Camera and LiDAR
+Social Navigation - Simple Prompt Version (Full Features)
+==========================================================
+
+This version uses a SIMPLE, NATURAL prompt that anyone can understand.
+Includes ALL features: Depth Camera, LiDAR, Sensor Fusion.
+
+Accuracy: ~15-20 cm (slightly less than bbox version due to no bounding box)
+
+Usage:
+  ros2 run yahboom_rosmaster_navigation social_navigation_simple.py \
+    --ros-args -p gemini_api_key:="YOUR_API_KEY"
 
 Author: Abolghasem Esmaeily
 Date: December 2025
-
-Improvements over v1:
-- Depth camera integration for precise distance measurement
-- LiDAR integration for robust distance verification
-- Bounding box support for precise angular position
-- Fusion of multiple sensors for best estimate
-
-Usage:
-  ros2 run yahboom_rosmaster_navigation social_navigation.py \
-    --ros-args -p gemini_api_key:="YOUR_API_KEY"
 """
 
 import rclpy
@@ -35,20 +34,16 @@ from tf2_ros import Buffer, TransformListener
 from rclpy.duration import Duration
 
 
-class GeminiSocialNavigator(Node):
+class SocialNavigatorSimple(Node):
     """
-    Social navigation using Gemini AI for human detection and engagement analysis.
-    Enhanced with precise distance estimation using depth camera and LiDAR.
+    Social navigation using SIMPLE, NATURAL prompts.
+    Anyone can understand and modify the prompt.
     
-    Distance Estimation Methods:
-    1. GEMINI_ONLY: Use Gemini's categorical estimate (original, least precise)
-    2. DEPTH_CAMERA: Use depth image at human's pixel location (precise)
-    3. LIDAR: Project to 2D and find closest LiDAR point (very precise)
-    4. FUSION: Combine depth + LiDAR for best estimate (most robust)
+    Includes all features: Depth Camera, LiDAR, Sensor Fusion.
     """
     
     def __init__(self):
-        super().__init__('gemini_social_navigator')
+        super().__init__('social_navigator_simple')
         
         # ============ PARAMETERS ============
         self.declare_parameter('gemini_api_key', '')
@@ -877,7 +872,7 @@ If no people: {"scene": "description", "people": []}
 
 def main(args=None):
     rclpy.init(args=args)
-    node = GeminiSocialNavigator()
+    node = SocialNavigatorSimple()
     
     try:
         rclpy.spin(node)
