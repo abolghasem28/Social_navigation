@@ -129,9 +129,9 @@ The system uses Google's Gemini foundation model to:
 
 | Engagement Level | Human Activity | Obstacle Radius | Robot Behavior |
 | --- | --- | --- | --- |
-| **HIGH** | Conversation, interacting | 1.2m | Wide detour - don't interrupt |
-| **MEDIUM** | Standing, looking around | 0.8m | Moderate buffer |
-| **LOW** | Walking, passing through | 0.5m | Can pass closer |
+| **HIGH** | Conversation, interacting | 0.85m | Wide detour - don't interrupt |
+| **MEDIUM** | Standing, looking around | 0.60m | Moderate buffer |
+| **LOW** | Walking, passing through | 0.35m | Can pass closer |
 
 ---
 
