@@ -118,35 +118,7 @@ ros2 run yahboom_rosmaster_navigation social_navigation.py \
 
 ---
 
-## Package Structure
 
-```
-yahboom_rosmaster/
-├── yahboom_rosmaster_bringup/
-│   └── scripts/
-│       ├── rosmaster_x3_navigation.sh    # Main navigation launch script
-│       └── launch_gemini_detector.sh     # Gemini AI social navigation script
-│
-├── yahboom_rosmaster_navigation/
-│   ├── scripts/
-│   │   ├── obstacle_manager.py           # Static virtual obstacles (testing)
-│   │   └── social_navigation.py          # Gemini AI social navigation
-│   ├── config/
-│   │   └── rosmaster_x3_nav2_default_params.yaml  # Nav2 configuration
-│   └── README.md                         # Navigation documentation
-│
-├── yahboom_rosmaster_gazebo/
-│   ├── worlds/
-│   │   └── cafe.world                    # Cafe environment with humans
-│   └── models/                           # Gazebo models (cafe, tables, etc.)
-│
-└── yahboom_rosmaster_description/
-    └── urdf/
-        ├── robots/rosmaster_x3.urdf.xacro    # Robot description
-        └── sensors/rgbd_camera.urdf.xacro    # Camera configuration
-```
-
----
 
 ## Social Navigation Features
 
