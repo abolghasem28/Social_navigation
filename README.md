@@ -1,10 +1,11 @@
 # Yahboom ROSMASTER X3 - Social Navigation Platform
-
+---
 ![OS](https://img.shields.io/ubuntu/v/ubuntu-wallpapers/noble)
 ![ROS_2](https://img.shields.io/ros/v/jazzy/rclcpp)
 ![Gemini](https://img.shields.io/badge/Gemini-AI%20Powered-blue)
 ![Nav2](https://img.shields.io/badge/Nav2-Social%20Navigation-green)
 ![Algorithm](https://img.shields.io/badge/Algorithm-Hybrid%20Tracker-purple)
+![Alt text](image.png)
 
 ---
 
