@@ -4,23 +4,10 @@
 # Usage: ./launch_gemini_detector.sh (No argument needed if key is hardcoded)
 
 # --- HARDCODED KEY ---
-API_KEY="YOUR_GEMINI_API_KEY_HERE"
+export GEMINI_API_KEY="AIzaSyBwYeGp7YlEQxPODHvuIKzjq3GZke13pcU"
 # ---------------------
 
-# --- REMOVE THIS INITIAL CHECK BLOCK ---
-# if [ -z "$1" ]; then
-#     echo "Error: Gemini API key required"
-#     echo "Usage: $0 YOUR_GEMINI_API_KEY"
-#     echo ""
-#     echo "Get your API key from: https://aistudio.google.com/app/apikey"
-#     exit 1
-# fi
-# ---------------------------------------
 
-# The rest of the script remains the same
-# echo "Starting Gemini Human Detector..."
-# echo "Camera topic: /cam_1/color/image_raw"
-# echo "Publishing obstacles to: /virtual_obstacles"
 echo "Starting Safety Monitor..."
 echo ""
 
@@ -29,9 +16,10 @@ echo ""
 
 # Run the node
 #python3 /home/aesmaeily/ros2_ws/src/yahboom_rosmaster/yahboom_rosmaster_navigation/scripts/social_navigation_accuracy.py \
-python3 /home/aesmaeily/ros2_ws/src/yahboom_rosmaster/yahboom_rosmaster_navigation/scripts/social_navigation.py \
+#python3 /home/aesmaeily/ros2_ws/src/yahboom_rosmaster/yahboom_rosmaster_navigation/scripts/social_navigation.py \
+python3 /home/aesmaeily/ros2_ws/src/yahboom_rosmaster/yahboom_rosmaster_navigation/scripts/social_navigation_pixel.py \
     --ros-args \
-    -p gemini_api_key:="$API_KEY" \
+    -p gemini_api_key:="$GEMINI_API_KEY" \
     -p camera_topic:=/cam_1/color/image_raw \
     -p distance_method:="fusion" \
     # -p human_detection_distance:=1.0 \

@@ -85,6 +85,7 @@ def generate_launch_description():
         namespace=camera_namespace,
         remappings=[
             ('image', 'color/image_raw'),
+            ('camera_info', 'color/camera_info'),  # Remap camera_info added this line
             ('image_rect', 'color/image_rect'),
         ],
         parameters=[{

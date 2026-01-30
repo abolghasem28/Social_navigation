@@ -44,6 +44,8 @@ install(PROGRAMS
   scripts/obstacle_manager.py
   scripts/social_navigation.py
   scripts/social_navigation_accuracy.py
+  scripts/social_navigation_pixel.py
+  scripts/tf_probe.py
   DESTINATION lib/${PROJECT_NAME}
 )
 

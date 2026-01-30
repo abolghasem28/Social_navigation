@@ -25,6 +25,7 @@ import cv2
 import google.generativeai as genai
 from PIL import Image as PILImage
 import json
+import os
 import numpy as np
 import threading
 import time
@@ -32,7 +33,6 @@ import struct
 import math
 from tf2_ros import Buffer, TransformListener
 from rclpy.duration import Duration
-
 
 class SocialNavigatorBBox(Node):
     """
@@ -46,7 +46,10 @@ class SocialNavigatorBBox(Node):
         super().__init__('social_navigator_bbox')
         
         # ============ PARAMETERS ============
-        self.declare_parameter('gemini_api_key', '')
+        env_key = os.environ.get('GEMINI_API_KEY', '')
+        
+        # 2. Declare the ROS parameter using that default
+        self.declare_parameter('gemini_api_key', env_key)
         self.declare_parameter('camera_topic', '/cam_1/color/image_raw')
         self.declare_parameter('depth_topic', '/cam_1/depth/color/points')  # PointCloud2 from RGB-D
         self.declare_parameter('lidar_topic', '/scan')
@@ -84,6 +87,7 @@ class SocialNavigatorBBox(Node):
             return
         
         # ============ INITIALIZE GEMINI ============
+       
         genai.configure(api_key=api_key)
         try:
             self.model = genai.GenerativeModel('gemini-2.0-flash')
@@ -712,19 +716,23 @@ If no people: {"scene": "description", "humans": []}
             ]
             
             for new_obs in new_obstacles:
+                matched = False
                 is_duplicate = False
                 for existing in self.current_obstacles:
                     dist = math.sqrt(
                         (new_obs['x'] - existing['x'])**2 +
                         (new_obs['y'] - existing['y'])**2
                     )
-                    if dist < 1.0:
+                    if dist < 0.4:  # Same human
+            # Update with weighted average (smoothing)
+                        alpha = 0.2
+                        existing['x'] = alpha * new_obs['x'] + (1-alpha) * existing['x']
+                        existing['y'] = alpha * new_obs['y'] + (1-alpha) * existing['y']
                         existing['expires_at'] = new_obs['expires_at']
-                        existing['radius'] = max(existing['radius'], new_obs['radius'])
-                        is_duplicate = True
+                        matched = True
                         break
                 
-                if not is_duplicate:
+                if not matched:
                     self.current_obstacles.append(new_obs)
 
     # ============ OBSTACLE PUBLISHING ============
