@@ -144,19 +144,23 @@ This limits the maximum distance an object can travel in a single time step, pre
 
 **Variables:**
 
-* : Previous position vector 
-* : Raw position measured by the sensor 
-* : Maximum allowed distance per step (e.g., )
+* `P_old`: Previous position vector 
+* `P_new`: Raw position measured by the sensor 
+* `d_max`: Maximum allowed distance per step (e.g., `0.5m`)
 
 **Step 1: Calculate Displacement**
-$$ \Delta \mathbf{P} = \mathbf{P}*{new} - \mathbf{P}*{old} $$
+
+$$\Delta \mathbf{P} = \mathbf{P}_{new} - \mathbf{P}_{old}$$
 
 **Step 2: Calculate Magnitude**
-$$ d = |\Delta \mathbf{P}| = \sqrt{(x_{new} - x_{old})^2 + (y_{new} - y_{old})^2} $$
+
+$$d = |\Delta \mathbf{P}| = \sqrt{(x_{new} - x_{old})^2 + (y_{new} - y_{old})^2}$$
 
 **Step 3: Apply Clamp**
-If the distance  exceeds the limit , we scale the vector back.
-$$ \mathbf{P}*{clamped} = \begin{cases} \mathbf{P}*{new} & \text{if } d \le d_{max} \ \mathbf{P}*{old} + \left( \frac{\Delta \mathbf{P}}{d} \times d*{max} \right) & \text{if } d > d_{max} \end{cases} $$
+
+If the distance `d` exceeds the limit `d_max`, we scale the vector back.
+
+$$\mathbf{P}_{clamped} = \begin{cases} \mathbf{P}_{new} & \text{if } d \le d_{max} \\ \mathbf{P}_{old} + \left( \frac{\Delta \mathbf{P}}{d} \times d_{max} \right) & \text{if } d > d_{max} \end{cases}$$
 
 ### 2. Exponential Smoothing (Low-Pass Filter)
 
@@ -164,19 +168,19 @@ This filters out high-frequency noise (jitter) by blending the current state wit
 
 **Variables:**
 
-* : Final smoothed position at time 
-* : The input for this step (from Clamping)
-* : Smoothing factor ()
+* `P_t`: Final smoothed position at time `t`
+* `P_input`: The input for this step (from Clamping)
+* `α`: Smoothing factor (`0 < α ≤ 1`)
 
 **The Formula:**
-$$ \mathbf{P}*{t} = \alpha \cdot \mathbf{P}*{input} + (1 - \alpha) \cdot \mathbf{P}_{t-1} $$
+
+$$\mathbf{P}_{t} = \alpha \cdot \mathbf{P}_{input} + (1 - \alpha) \cdot \mathbf{P}_{t-1}$$
 
 ### 3. The Combined Algorithm
 
 In the `social_navigation_hybrid.py` node, these apply sequentially:
 
-$$ \mathbf{P}*{final} = \underbrace{\alpha \cdot \left[ \mathbf{P}*{old} + \min\left(1, \frac{d_{max}}{|\mathbf{P}*{sensor} - \mathbf{P}*{old}|} \right) (\mathbf{P}*{sensor} - \mathbf{P}*{old}) \right]}*{\text{New Contribution}} + \underbrace{(1 - \alpha) \cdot \mathbf{P}*{old}}_{\text{History Inertia}} $$
-
+$$\mathbf{P}_{final} = \underbrace{\alpha \cdot \left[ \mathbf{P}_{old} + \min\left(1, \frac{d_{max}}{|\mathbf{P}_{sensor} - \mathbf{P}_{old}|} \right) (\mathbf{P}_{sensor} - \mathbf{P}_{old}) \right]}_{\text{New Contribution}} + \underbrace{(1 - \alpha) \cdot \mathbf{P}_{old}}_{\text{History Inertia}}$$
 ---
 
 ## Configuration
