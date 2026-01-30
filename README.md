@@ -23,14 +23,6 @@ This repository extends the base [Automatic Addison](https://automaticaddison.co
 
 ---
 
-## Demo
-
-| Gazebo Simulation | RViz Visualization |
-|-------------------|-------------------|
-| ![ROSMASTER X3 in Gazebo](https://automaticaddison.com/wp-content/uploads/2024/11/gazebo-800-square-mecanum-controller.gif) | ![ROSMASTER X3 in RViz](https://automaticaddison.com/wp-content/uploads/2024/11/rviz-800-square-mecanum-controller.gif) |
-
----
-
 ## Quick Start
 
 ### Prerequisites
