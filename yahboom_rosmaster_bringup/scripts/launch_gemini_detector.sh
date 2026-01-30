@@ -4,7 +4,7 @@
 # Usage: ./launch_gemini_detector.sh (No argument needed if key is hardcoded)
 
 # --- HARDCODED KEY ---
-export GEMINI_API_KEY="AIzaSyBwYeGp7YlEQxPODHvuIKzjq3GZke13pcU"
+export GEMINI_API_KEY="Your_Hardcoded_Gemini_API_Key_Here"
 # ---------------------
 
 
@@ -17,7 +17,7 @@ echo ""
 # Run the node
 #python3 /home/aesmaeily/ros2_ws/src/yahboom_rosmaster/yahboom_rosmaster_navigation/scripts/social_navigation_accuracy.py \
 #python3 /home/aesmaeily/ros2_ws/src/yahboom_rosmaster/yahboom_rosmaster_navigation/scripts/social_navigation.py \
-python3 /home/aesmaeily/ros2_ws/src/yahboom_rosmaster/yahboom_rosmaster_navigation/scripts/social_navigation_pixel.py \
+python3 /home/aesmaeily/ros2_ws/src/yahboom_rosmaster/yahboom_rosmaster_navigation/scripts/social_navigation_hybrid.py \
     --ros-args \
     -p gemini_api_key:="$GEMINI_API_KEY" \
     -p camera_topic:=/cam_1/color/image_raw \
