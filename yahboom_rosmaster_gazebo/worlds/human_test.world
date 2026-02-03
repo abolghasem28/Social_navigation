@@ -1,0 +1,85 @@
+<?xml version="1.0" ?>
+<sdf version="1.6">
+  <world name="test_cylinder_world">
+
+    <plugin
+      filename="gz-sim-physics-system"
+      name="gz::sim::systems::Physics">
+    </plugin>
+    <plugin
+      filename="gz-sim-scene-broadcaster-system"
+      name="gz::sim::systems::SceneBroadcaster">
+    </plugin>
+    <plugin
+      filename="gz-sim-sensors-system"
+      name="gz::sim::systems::Sensors">
+      <render_engine>ogre2</render_engine>
+    </plugin>
+    <plugin
+      filename="gz-sim-user-commands-system"
+      name="gz::sim::systems::UserCommands">
+    </plugin>
+
+    <include>
+      <uri>model://sun</uri>
+    </include>
+    <include>
+      <uri>model://ground_plane</uri>
+    </include>
+
+    <model name="human_1">
+      <static>true</static>
+      <pose>2 0 0.85 0 0 0</pose>
+      <link name="link">
+        <collision name="collision"><geometry><cylinder><radius>0.25</radius><length>1.7</length></cylinder></geometry></collision>
+        <visual name="visual">
+          <geometry><cylinder><radius>0.25</radius><length>1.7</length></cylinder></geometry>
+          <material><ambient>0.8 0.2 0.2 1</ambient><diffuse>0.8 0.2 0.2 1</diffuse></material>
+        </visual>
+      </link>
+    </model>
+
+    <model name="human_2">
+      <static>true</static>
+      <pose>-1 2 0.85 0 0 0</pose>
+      <link name="link">
+        <collision name="collision"><geometry><cylinder><radius>0.25</radius><length>1.7</length></cylinder></geometry></collision>
+        <visual name="visual">
+          <geometry><cylinder><radius>0.25</radius><length>1.7</length></cylinder></geometry>
+          <material><ambient>0.2 0.8 0.2 1</ambient><diffuse>0.2 0.8 0.2 1</diffuse></material>
+        </visual>
+      </link>
+    </model>
+
+    <model name="human_3">
+      <static>true</static>
+      <pose>0 -2 0.85 0 0 0</pose>
+      <link name="link">
+        <collision name="collision"><geometry><cylinder><radius>0.25</radius><length>1.7</length></cylinder></geometry></collision>
+        <visual name="visual">
+          <geometry><cylinder><radius>0.25</radius><length>1.7</length></cylinder></geometry>
+          <material><ambient>0.2 0.2 0.8 1</ambient><diffuse>0.2 0.2 0.8 1</diffuse></material>
+        </visual>
+      </link>
+    </model>
+
+    <model name="ghost_proof">
+      <static>true</static>
+      <pose>2 2 0.85 0 0 0</pose> <link name="link">
+        <visual name="visual">
+          <geometry><cylinder><radius>0.25</radius><length>1.7</length></cylinder></geometry>
+          <material>
+            <ambient>1 0 0 0.5</ambient> <diffuse>1 0 0 0.5</diffuse>
+          </material>
+        </visual>
+      </link>
+    </model>
+
+    <include>
+      <name>real_human_mesh</name>
+      <pose>2 -2 0 0 0 0</pose>
+      <uri>https://fuel.gazebosim.org/1.0/OpenRobotics/models/Standing person</uri>
+    </include>
+
+  </world>
+</sdf>

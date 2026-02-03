@@ -190,11 +190,18 @@ class SocialNavigatorHybrid(Node):
                 
                 # HYBRID DISTANCE LOGIC
                 final_z = None
-                method = "DEPTH"
+                method = "DEPTH SENSOR"
                 
                 # Try Depth Sensor (PointCloud)
                 if pc_msg:
-                    pt_3d = self.get_xyz_smart_scan(pc_msg, int(kp[0]), int(kp[1]))
+                    scale_x = pc_msg.width / img_w
+                    scale_y = pc_msg.height / img_h
+                    # Scale the pixel coordinates 
+                    pc_x= int(kp[0] * scale_x)
+                    pc_y= int(kp[1] * scale_y)
+                    
+                    # Scan use of the scaled coordiantes
+                    pt_3d = self.get_xyz_smart_scan(pc_msg, pc_x, pc_y)
                     if pt_3d:
                         final_z = pt_3d[2] # Use precise depth Z
 
@@ -222,6 +229,7 @@ class SocialNavigatorHybrid(Node):
                     
                     if map_pt:
                         radius = 0.85 if 'high' in eng else (0.60 if 'medium' in eng else 0.35)
+                        # Log to see what method was used for z_distance
                         self.get_logger().info(f"Human {i}: {eng.upper()} -> {final_z:.2f}m [{method}]")
                         
                         current_detections.append({

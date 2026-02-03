@@ -46,6 +46,7 @@ install(PROGRAMS
   scripts/social_navigation_accuracy.py
   scripts/social_navigation_hybrid.py
   scripts/tf_probe.py
+  scripts/create_human_human_test_map.py
   DESTINATION lib/${PROJECT_NAME}
 )
 
