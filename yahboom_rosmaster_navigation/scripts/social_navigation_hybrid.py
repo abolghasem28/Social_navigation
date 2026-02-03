@@ -16,7 +16,7 @@ from visualization_msgs.msg import Marker, MarkerArray
 from geometry_msgs.msg import PointStamped
 from tf2_ros import Buffer, TransformListener
 import tf2_geometry_msgs
-
+from sensor_msgs.msg import CameraInfo
 from cv_bridge import CvBridge
 import cv2
 import numpy as np
@@ -104,6 +104,16 @@ class SocialNavigatorHybrid(Node):
         self.obstacle_pub = self.create_publisher(PointCloud2, '/virtual_obstacles', 10)
         self.marker_pub = self.create_publisher(MarkerArray, '/human_markers', 10)
 
+        self.debug_pub = self.create_publisher(Marker, '/debug_click_point', 10)
+
+        # A generic camera model parameters (will be updated if CameraInfo received)
+        self.fx = 554.25 # Approx for 640 width (Standard ROS)
+        self.fy = 554.25
+        self.cx = 320.5
+        self.cy = 240.5
+        self.calibrated = False
+
+        self.create_subscription(CameraInfo, '/cam_1/color/camera_info', self.info_cb, 10)
         # STATE 
         self.latest_rgb = None
         self.latest_pc = None
@@ -139,15 +149,38 @@ class SocialNavigatorHybrid(Node):
         # Threaded processing to avoid blocking the main ROS thread callbacks
         threading.Thread(target=self.process_gemini, args=(rgb_msg, pc_msg)).start()
 
+    def info_cb(self, msg):
+        if not self.calibrated:
+            self.fx = msg.k[0]
+            self.cx = msg.k[2]
+            self.fy = msg.k[4]
+            self.cy = msg.k[5]
+            self.calibrated = True
+            #self.get_logger().info(f"Calibration Updated: fx={self.fx:.2f}, cx={self.cx:.2f}")
+
     def process_gemini(self, rgb_msg, pc_msg):
+        # 1. SETUP LENS MATH (Handle Missing Calibration)
         try:
             img_w = rgb_msg.width
             img_h = rgb_msg.height
-            fov = 1.5184 # Approx 87 degrees in radians for Yahboom Rosmaster Camera can be calibrated for better results for real world setup
-            focal_length = img_w / (2 * math.tan(fov / 2))
 
-            cv_img = self.bridge.imgmsg_to_cv2(rgb_msg, 'bgr8')
-            pil_img = PILImage.fromarray(cv2.cvtColor(cv_img, cv2.COLOR_BGR2RGB))
+            # If it not received real calibration yet, we estimate it 
+            if not self.calibrated:
+                fov = 1.5184
+                self.fx = img_w / (2 * math.tan(fov / 2)) # Estimate FX,FY, CY, CX 
+                self.fy = self.fx                       
+                self.cx = img_w / 2.0              
+                self.cy = img_h / 2.0                     
+
+            cv_rgb = self.bridge.imgmsg_to_cv2(rgb_msg, 'bgr8')
+            pil_img = PILImage.fromarray(cv2.cvtColor(cv_rgb, cv2.COLOR_BGR2RGB))
+            
+            scale_x, scale_y = 1.0, 1.0
+            if pc_msg and pc_msg.width > 0:
+                scale_x = pc_msg.width / img_w
+                scale_y = pc_msg.height / img_h
+
+
 
             """ PROMPT EXPLANATION:
                 1. "key_point": [320, 240] 
@@ -159,7 +192,6 @@ class SocialNavigatorHybrid(Node):
                 - Normalized values are "safer" because they are independent of image resolution. 
                     (e.g., "0.5" is always the center, whether the image is 640x480 or 1920x1080).
                 """
-            
 
             prompt = f"""
             Find humans. Return JSON.
@@ -170,17 +202,19 @@ class SocialNavigatorHybrid(Node):
             Image Size: {img_w}x{img_h}.
             """
             
-            resp = self.model.generate_content([prompt, pil_img])
-            text = resp.text.strip().replace("```json", "").replace("```", "")
-            if "'" in text: text = text.replace("'", '"')
-            
-            start, end = text.find('{'), text.rfind('}') + 1
-            if start == -1: return
-            data = json.loads(text[start:end])
+            try:
+                resp = self.model.generate_content([prompt, pil_img])
+                text = resp.text.strip().replace("```json", "").replace("```", "")
+                if "'" in text: text = text.replace("'", '"')
+                data = json.loads(text[text.find('{'):text.rfind('}')+1])
+            except: return 
 
             humans = data.get('humans', [])
             current_detections = []
             
+            frame_id = pc_msg.header.frame_id if pc_msg else rgb_msg.header.frame_id
+            stamp = pc_msg.header.stamp if pc_msg else rgb_msg.header.stamp
+
             for i, human in enumerate(humans):
                 kp = human.get('key_point')
                 bbox = human.get('bbox')
@@ -188,58 +222,53 @@ class SocialNavigatorHybrid(Node):
                 
                 if not kp: continue
                 
-                # HYBRID DISTANCE LOGIC
+                # Hybrid distance logic
                 final_z = None
-                method = "DEPTH SENSOR"
-                
-                # Try Depth Sensor (PointCloud)
+                method = "VISUAL_BACKUP"
+
+                # PRIMARY: DEPTH SENSOR PointCloud
                 if pc_msg:
-                    scale_x = pc_msg.width / img_w
-                    scale_y = pc_msg.height / img_h
-                    # Scale the pixel coordinates 
-                    pc_x= int(kp[0] * scale_x)
-                    pc_y= int(kp[1] * scale_y)
+                    rgb_x, rgb_y = kp[0], kp[1]
+                    pc_x = int(rgb_x * scale_x)
+                    pc_y = int(rgb_y * scale_y)
                     
-                    # Scan use of the scaled coordiantes
                     pt_3d = self.get_xyz_smart_scan(pc_msg, pc_x, pc_y)
+                    
                     if pt_3d:
-                        final_z = pt_3d[2] # Use precise depth Z
+                        final_z = pt_3d[2]
+                        method = "DEPTH_SENSOR"
 
                 # Visual Fallback (If Depth Failed / Ghost)
                 if final_z is None and bbox and len(bbox) == 4:
-                    method = "VISUAL_BACKUP Using BBox"
+                    method = "VISUAL_BACKUP (Ghost)"
                     ymin, _, ymax, _ = bbox
                     px_h = (ymax - ymin) * img_h
-                    if px_h > 10: # 10 is an emperical value as a small value like 5 cause too large distance errors or 20 cause ignore a human stading few meter away
-                        final_z = (1.7 * focal_length) / px_h * 0.95
+                    
+                    # Uses self.fy instead of 'focal_length'
+                    if px_h > 10: 
+                         # We use 0.65m as approx visible torso height
+                        final_z = (0.65 * self.fy) / px_h 
 
-                # Calculate Map Position using Pinhole Camera Model
                 if final_z:
-                    cx = kp[0]
-                    x_center = img_w / 2
-                    final_x = (cx - x_center) * final_z / focal_length
-                    final_y = 0.0
+                    # Uses self.fx and self.cx instead of 'focal_length' and 'x_center'
+                    cx_pixel = kp[0]
+                    final_x = (cx_pixel - self.cx) * final_z / self.fx
+                    final_y = 0.0 
                     
-                    # Get frame and timestamp is safe method if Depth Camera fails, measure from Camera, and use the RGB timestamp keeps math consistent
-                    frame_id = pc_msg.header.frame_id if pc_msg else "cam_1_depth_optical_frame"
-                    stamp = pc_msg.header.stamp if pc_msg else rgb_msg.header.stamp
-                    
-                    # Transform from Camera Frame to Map Frame
                     map_pt = self.transform_point(final_x, final_y, final_z, frame_id, stamp)
                     
                     if map_pt:
                         radius = 0.85 if 'high' in eng else (0.60 if 'medium' in eng else 0.35)
-                        # Log to see what method was used for z_distance
-                        self.get_logger().info(f"Human {i}: {eng.upper()} -> {final_z:.2f}m [{method}]")
+                        self.get_logger().info(f"Human {i+1}: {eng.upper()} -> {final_z:.2f}m [{method}]")
                         
                         current_detections.append({
                             'x': map_pt[0], 'y': map_pt[1], 'z': map_pt[2], 'r': radius
                         })
 
-            # UPDATE TRACKERS (This connects to the Class logic)
             self.update_trackers(current_detections)
 
         except Exception as e:
+            # This prints the error so you know exactly what line failed
             self.get_logger().error(f"Gemini Error: {e}")
 
     # =========================================
@@ -331,8 +360,10 @@ class SocialNavigatorHybrid(Node):
     # PUBLISHING
     # =========================================
     def publish_obstacles(self):
-        cloud_buffer = []
+        cloud_points = []
         marker_array = MarkerArray()
+
+        # old obstacles removal marker
         delete_m = Marker()
         delete_m.action = Marker.DELETEALL
         marker_array.markers.append(delete_m)
@@ -345,7 +376,7 @@ class SocialNavigatorHybrid(Node):
 
             for tracker in self.trackers:
                 # Use smoothed values from tracker of human movement that obstacle slide smoothly on the map
-                cx, cy, radius = tracker.x, tracker.y, tracker.radius
+                cx, cy = tracker.x, tracker.y
                 
                 m = Marker()
                 m.header.frame_id = self.target_frame
@@ -354,27 +385,44 @@ class SocialNavigatorHybrid(Node):
                 m.id = tracker.id # Stable ID
                 m.type = Marker.CYLINDER # the choice of cylinder is because of rotation invariant safe for moving humans
                 m.action = Marker.ADD
-                m.pose.position.x, m.pose.position.y, m.pose.position.z = cx, cy, 0.5
-                m.scale.x = radius * 2.0; m.scale.y = radius * 2.0; m.scale.z = 1.0
-                m.color.a = 0.6
-                if radius > 0.8: m.color.r = 1.0; m.color.g = 0.0
-                else: m.color.r = 0.0; m.color.g = 1.0
-                m.color.b = 0.0
+                m.pose.position.x, m.pose.position.y, m.pose.position.z = cx, cy, 0.9
+                m.scale.x = tracker.radius * 2.0  # Visual Social Radius
+                m.scale.y = tracker.radius * 2.0
+                m.scale.z = 1.8
+                m.color.a = 0.3 # Very Transparent
+                m.color.r = 0.0; m.color.g = 1.0; m.color.b = 1.0 # Cyan
                 marker_array.markers.append(m)
 
-                for angle in range(0, 360, 20):
-                    rad = math.radians(angle)
-                    for r_step in [0.2, 0.5, 0.8, 1.0]:
-                        r = radius * r_step
-                        # From polar to cartesian coordinates
-                        px = cx + r * math.cos(rad)
-                        py = cy + r * math.sin(rad)
-                        for h in range(0, 15): # We stack points vertically (from 0.0m to 1.5m high)
-                            pz = h * 0.1
-                            cloud_buffer.append(struct.pack('fff', px, py, pz))
 
-        if cloud_buffer:
-            self.publish_cloud(b''.join(cloud_buffer), len(cloud_buffer))
+                physical_radius = 0.30 
+                points_per_layer = 36  # Density
+                height_layers = 20     # From 0m to 2.0m
+                
+                for h_idx in range(height_layers):
+                    z = h_idx * 0.1 # Every 10cm up
+
+                # Create a dense grid/spiral of points
+                    for angle_idx in range(points_per_layer):
+                        angle = (2 * math.pi * angle_idx) / points_per_layer
+                        
+                        # We add random noise or multiple radii to make it "Solid"
+                        # Ring 1 (Outer Shell)
+                        px = cx + physical_radius * math.cos(angle)
+                        py = cy + physical_radius * math.sin(angle)
+                        cloud_points.append(struct.pack('fff', px, py, z))
+                        
+                        # Ring 2 (Inner Core) - Ensures no "hollow" center
+                        px_inner = cx + (physical_radius * 0.5) * math.cos(angle)
+                        py_inner = cy + (physical_radius * 0.5) * math.sin(angle)
+                        cloud_points.append(struct.pack('fff', px_inner, py_inner, z))
+                        
+                        # Center Spine
+                        if angle_idx == 0:
+                            cloud_points.append(struct.pack('fff', cx, cy, z))
+
+        # Publish the PointCloud
+        if cloud_points:
+            self.publish_cloud(b''.join(cloud_points), len(cloud_points))
             self.marker_pub.publish(marker_array)
 
     def publish_cloud(self, data_bytes, num_points):
