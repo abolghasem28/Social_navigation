@@ -7,6 +7,7 @@
 ![Algorithm](https://img.shields.io/badge/Algorithm-Hybrid%20Tracker-purple)
 
 ![Social Navigation Demo](image.png)
+
 ---
 
 ## Overview
@@ -125,6 +126,29 @@ The system uses Google's Gemini foundation model to:
 | **HIGH** | Conversation, interacting | 0.85m | Wide detour - don't interrupt |
 | **MEDIUM** | Standing, looking around | 0.60m | Moderate buffer |
 | **LOW** | Walking, passing through | 0.35m | Can pass closer |
+
+### Sample Output
+
+When running the social navigation node, you'll see real-time detection logs:
+
+```
+[INFO] [social_navigator_hybrid]: Human 1: MEDIUM -> 0.56m [DEPTH_SENSOR]
+[INFO] [social_navigator_hybrid]: Human 2: HIGH -> 0.79m [VISUAL_BACKUP (Ghost)]
+[INFO] [social_navigator_hybrid]: Human 1: MEDIUM -> 0.57m [DEPTH_SENSOR]
+[INFO] [social_navigator_hybrid]: Human 2: MEDIUM -> 0.65m [VISUAL_BACKUP (Ghost)]
+[INFO] [social_navigator_hybrid]: Human 1: MEDIUM -> 0.57m [DEPTH_SENSOR]
+[INFO] [social_navigator_hybrid]: Human 2: MEDIUM -> 0.78m [VISUAL_BACKUP (Ghost)]
+```
+
+**Log Format:** `Human [ID]: [ENGAGEMENT] -> [RADIUS] [SOURCE]`
+
+| Field | Description |
+|-------|-------------|
+| `Human 1/2` | Detected person ID |
+| `HIGH/MEDIUM/LOW` | Engagement level (affects obstacle size) |
+| `0.57m` | Virtual obstacle radius |
+| `DEPTH_SENSOR` | Distance from depth camera (accurate) |
+| `VISUAL_BACKUP (Ghost)` | Fallback to Gemini estimate (less accurate) |
 
 ---
 
@@ -267,5 +291,5 @@ source /home/aesmaeily/ros2_ws/install/setup.bash
 ## Author
 
 **Abolghasem Esmaeily**  
-Social Navigation Research  
+Social Navigation Research
 February 2026
