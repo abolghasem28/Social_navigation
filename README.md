@@ -1,12 +1,12 @@
 # Yahboom ROSMASTER X3 - Social Navigation Platform
----
+
 ![OS](https://img.shields.io/ubuntu/v/ubuntu-wallpapers/noble)
 ![ROS_2](https://img.shields.io/ros/v/jazzy/rclcpp)
 ![Gemini](https://img.shields.io/badge/Gemini-AI%20Powered-blue)
 ![Nav2](https://img.shields.io/badge/Nav2-Social%20Navigation-green)
 ![Algorithm](https://img.shields.io/badge/Algorithm-Hybrid%20Tracker-purple)
-![Alt text](image.png)
 
+![Social Navigation Demo](image.png)
 ---
 
 ## Overview
@@ -35,7 +35,6 @@ sudo apt install ros-jazzy-navigation2 ros-jazzy-nav2-bringup
 
 # Python dependencies for Gemini AI
 pip install google-generativeai opencv-python pillow numpy --break-system-packages
-
 ```
 
 ### Setup Aliases (Recommended)
@@ -51,14 +50,12 @@ alias social_nav='bash /home/aesmaeily/ros2_ws/src/yahboom_rosmaster/yahboom_ros
 
 # Source ROS2 workspace
 alias srcros='source /home/aesmaeily/ros2_ws/install/setup.bash'
-
 ```
 
 Then reload:
 
 ```bash
 source ~/.bashrc
-
 ```
 
 ---
@@ -76,7 +73,6 @@ nav1
 # - Robot state publisher
 # - Nav2 navigation stack
 # - RViz visualization
-
 ```
 
 ### Option 2: Social Navigation with Gemini AI
@@ -87,7 +83,6 @@ Edit the launch script to add your API key:
 
 ```bash
 nano /home/aesmaeily/ros2_ws/src/yahboom_rosmaster/yahboom_rosmaster_bringup/scripts/launch_gemini_detector.sh
-
 ```
 
 Add your export line before the run command:
@@ -99,7 +94,6 @@ export GEMINI_API_KEY="AIzaSy...YOUR_ACTUAL_KEY_HERE"
 
 # Run the Hybrid Node
 ros2 run yahboom_rosmaster_navigation social_navigation_hybrid.py
-
 ```
 
 #### Step 2: Launch the System
@@ -110,7 +104,6 @@ nav1
 
 # Terminal 2: Launch Gemini social navigation (after nav1 is fully loaded)
 social_nav
-
 ```
 
 ---
@@ -121,14 +114,14 @@ social_nav
 
 The system uses Google's Gemini foundation model to:
 
-1. **Detect humans** in camera images (Visual Backup).
-2. **Assess engagement level** (conversation, standing, walking).
-3. **Track positions** using the Hybrid Algorithm below.
+1. **Detect humans** in camera images (Visual Backup)
+2. **Assess engagement level** (conversation, standing, walking)
+3. **Track positions** using the Hybrid Algorithm below
 
 ### Engagement-Based Navigation
 
 | Engagement Level | Human Activity | Obstacle Radius | Robot Behavior |
-| --- | --- | --- | --- |
+|------------------|----------------|-----------------|----------------|
 | **HIGH** | Conversation, interacting | 0.85m | Wide detour - don't interrupt |
 | **MEDIUM** | Standing, looking around | 0.60m | Moderate buffer |
 | **LOW** | Walking, passing through | 0.35m | Can pass closer |
@@ -145,9 +138,9 @@ This limits the maximum distance an object can travel in a single time step, pre
 
 **Variables:**
 
-* `P_old`: Previous position vector 
-* `P_new`: Raw position measured by the sensor 
-* `d_max`: Maximum allowed distance per step (e.g., `0.5m`)
+- `P_old`: Previous position vector
+- `P_new`: Raw position measured by the sensor
+- `d_max`: Maximum allowed distance per step (e.g., `0.5m`)
 
 **Step 1: Calculate Displacement**
 
@@ -169,9 +162,9 @@ This filters out high-frequency noise (jitter) by blending the current state wit
 
 **Variables:**
 
-* `P_t`: Final smoothed position at time `t`
-* `P_input`: The input for this step (from Clamping)
-* `α`: Smoothing factor (`0 < α ≤ 1`)
+- `P_t`: Final smoothed position at time `t`
+- `P_input`: The input for this step (from Clamping)
+- `α`: Smoothing factor (`0 < α ≤ 1`)
 
 **The Formula:**
 
@@ -194,7 +187,8 @@ Camera settings affect both detection quality and system performance. Edit in `r
 ```xml
 <xacro:rgbd_camera
   xyz_offset="0.105 0 0.05"
-  rpy_offset="0 0.1 0"/>    ```
+  rpy_offset="0 0.1 0"/>
+```
 
 | Parameter | Recommended | Description |
 |-----------|-------------|-------------|
@@ -221,7 +215,6 @@ obstacle_layer:
     clearing: false
     min_obstacle_height: 0.0
     max_obstacle_height: 2.0
-
 ```
 
 ---
@@ -236,7 +229,6 @@ export GZ_SIM_RESOURCE_PATH=/home/aesmaeily/ros2_ws/src/yahboom_rosmaster/yahboo
 
 # ROS2 workspace
 source /home/aesmaeily/ros2_ws/install/setup.bash
-
 ```
 
 ---
@@ -244,40 +236,36 @@ source /home/aesmaeily/ros2_ws/install/setup.bash
 ## Troubleshooting
 
 | Problem | Solution |
-| --- | --- |
-| **Robot sees ghosts (Double Obstacles)** | Ensure you are running `social_navigation_hybrid.py` (New Code), not the old version. |
+|---------|----------|
+| **Robot sees ghosts (Double Obstacles)** | Ensure you are running `social_navigation_hybrid.py` (New Code), not the old version |
 | **Virtual obstacles not appearing** | Check Nav2 config indentation - `virtual_obstacles` must be inside `obstacle_layer` |
 | **Camera looking at ceiling** | Change `rpy_offset` to `"0 0.1 0"` in URDF |
 | **Robot unstable in RViz** | Reduce camera `update_rate` to 5 Hz |
-| **Gemini API errors** | Verify `export GEMINI_API_KEY` is set in the launch script. |
+| **Gemini API errors** | Verify `export GEMINI_API_KEY` is set in the launch script |
 
 ---
 
 ## Documentation
 
 | Document | Description |
-| --- | --- |
-| [Navigation README](https://www.google.com/search?q=yahboom_rosmaster_navigation/README.md) | Virtual obstacles and social navigation guide |
-| [Troubleshooting Report](https://www.google.com/search?q=yahboom_rosmaster_navigation/TROUBLESHOOTING_REPORT.md) | Common issues and solutions |
-| [Supervisor Report](https://www.google.com/search?q=yahboom_rosmaster_navigation/SUPERVISOR_REPORT.md) | Technical details for academic review |
+|----------|-------------|
+| [Navigation README](yahboom_rosmaster_navigation/README.md) | Virtual obstacles and social navigation guide |
+| [Troubleshooting Report](yahboom_rosmaster_navigation/TROUBLESHOOTING_REPORT.md) | Common issues and solutions |
+| [Supervisor Report](yahboom_rosmaster_navigation/SUPERVISOR_REPORT.md) | Technical details for academic review |
 
 ---
 
 ## Credits
 
-* **Base Setup:** [Automatic Addison](https://automaticaddison.com) - ROSMASTER X3 ROS 2 tutorials
-* **Robot Hardware:** [Yahboom](https://www.yahboom.net/) - ROSMASTER X3 robot platform
-* **AI Integration:** Google Gemini API for human detection and engagement analysis
-* **Algorithm Design:** Abolghasem Esmaeily
+- **Base Setup:** [Automatic Addison](https://automaticaddison.com) - ROSMASTER X3 ROS 2 tutorials
+- **Robot Hardware:** [Yahboom](https://www.yahboom.net/) - ROSMASTER X3 robot platform
+- **AI Integration:** Google Gemini API for human detection and engagement analysis
+- **Algorithm Design:** Abolghasem Esmaeily
 
 ---
 
 ## Author
 
-**Abolghasem Esmaeily** Social Navigation Research
-
-December 2025
-
-```
-
-```
+**Abolghasem Esmaeily**  
+Social Navigation Research  
+February 2026
