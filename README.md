@@ -94,7 +94,7 @@ ros2 run yahboom_rosmaster_navigation social_navigation_hybridsim.py
 
 ### Mode 2: Real-World (Hardware)
 
-Use this mode when connected to the physical ROBOT robot with the Intel RealSense D435 camera.
+Use this mode when connected to the physical robot with the Intel RealSense D435 camera.
 
 **Terminal 1: Launch Camera Drivers**
 
