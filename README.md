@@ -71,63 +71,54 @@ source ~/.bashrc
 
 ## Running the System
 
-### You can run the system in two modes: Simulation or Real-World.
+You can run the system in two modes: **Simulation** or **Real-World**.
 
+### Mode 1: Simulation (Gazebo)
+
+Use this mode for testing logic and navigation behavior in a safe virtual environment.
+
+**Terminal 1: Launch Simulation & Nav2**
 ```bash
-# Terminal 1: Launch complete navigation stack
-nav1
-
-# This launches:
-# - Gazebo simulation with cafe world
-# - Robot state publisher
-# - Nav2 navigation stack
-# - RViz visualization
+nav_sim
+# Launches Gazebo, Robot State Publisher, Nav2, and RViz
 ```
 
-### Option 2: Social Navigation in Simulation
-
-#### Step 1: Configure Gemini API Key
-
+**Terminal 2: Launch Social Tracker (Sim)**
 ```bash
-nano /home/aesmaeily/ros2_ws/src/yahboom_rosmaster/yahboom_rosmaster_bringup/scripts/launch_gemini_detector.sh
-```
+# Ensure your API Key is set
+export GEMINI_API_KEY="AIzaSy...YOUR_KEY"
 
-Add your export line before the run command:
-
-```bash
-# --- EXPORT API KEY HERE ---
-export GEMINI_API_KEY="AIzaSy...YOUR_ACTUAL_KEY_HERE"
-# ---------------------------
-
-# Run the Simulation Hybrid Node
+# Run the Simulation Script
 ros2 run yahboom_rosmaster_navigation social_navigation_hybridsim.py
 ```
 
-#### Step 2: Launch the System
+### Mode 2: Real-World (Hardware)
 
+Use this mode when connected to the physical ROSMASTER X3 robot with the Intel RealSense D435 camera.
+
+**Terminal 1: Launch Camera Drivers**
+
+Start the RealSense camera with pointclouds enabled.
 ```bash
-# Terminal 1: Launch navigation stack
-nav1
-
-# Terminal 2: Launch Gemini social navigation (after nav1 is fully loaded)
-social_nav
+ros2 launch realsense2_camera rs_launch.py align_depth.enable:=true pointcloud.enable:=true
 ```
 
-### Option 3: Social Navigation on Real Robot
-
+**Terminal 2: Launch Real-World Tracker**
 ```bash
-# Terminal 1: Launch real robot navigation stack
-ros2 launch yahboom_rosmaster_bringup rosmaster_x3_real.launch.py
+# Ensure your API Key is set
+export GEMINI_API_KEY="AIzaSy...YOUR_KEY"
 
-# Terminal 2: Launch RealSense camera
-ros2 launch realsense2_camera rs_launch.py
-
-# Terminal 3: Run real-world social navigation
-export GEMINI_API_KEY="YOUR_KEY_HERE"
+# Run the Real-World Script
 ros2 run yahboom_rosmaster_navigation social_navigation_hybridreal.py
 ```
 
----
+**Terminal 3: Visualization (Optional)**
+```bash
+ros2 run rviz2 rviz2
+# Set Fixed Frame to: camera_color_optical_frame
+# Add MarkerArray topic: /human_markers
+# Add PointCloud2 topic: /virtual_obstacles
+```
 
 ## Social Navigation Features
 
