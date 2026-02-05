@@ -6,7 +6,7 @@
 ![Nav2](https://img.shields.io/badge/Nav2-Social%20Navigation-green)
 ![Algorithm](https://img.shields.io/badge/Algorithm-Hybrid%20Tracker-purple)
 
-![Social Navigation Demo](image.png)
+![Social Navigation Demo](Image.png)
 
 ---
 
@@ -23,6 +23,14 @@ This repository extends the base [Automatic Addison](https://automaticaddison.co
 | **Foundation Model Integration** | Added Gemini AI modules for human detection and engagement analysis |
 | **Hybrid Tracker** | Implemented Velocity Clamping and Exponential Smoothing to eliminate "ghosting" |
 
+### Core Scripts
+
+To support both research environments, the logic is split into two specialized scripts:
+
+1. **`social_navigation_hybridsim.py`**: Optimized for **Gazebo Simulation**. It handles TF transforms relative to the simulation `map` frame and synchronizes with simulated camera clocks.
+
+2. **`social_navigation_hybridreal.py`**: Optimized for **Real-World Hardware**. It includes specific handling for the **Intel RealSense D435** drivers, manages real-world sensor noise, and handles the `camera_color_optical_frame` transforms directly.
+
 ---
 
 ## Quick Start
@@ -32,7 +40,7 @@ This repository extends the base [Automatic Addison](https://automaticaddison.co
 ```bash
 # Install dependencies
 sudo apt update
-sudo apt install ros-jazzy-navigation2 ros-jazzy-nav2-bringup
+sudo apt install ros-jazzy-navigation2 ros-jazzy-nav2-bringup ros-jazzy-realsense2-camera
 
 # Python dependencies for Gemini AI
 pip install google-generativeai opencv-python pillow numpy --break-system-packages
@@ -43,10 +51,10 @@ pip install google-generativeai opencv-python pillow numpy --break-system-packag
 Add these aliases to your `~/.bashrc` for quick access:
 
 ```bash
-# Navigation aliases
+# Navigation aliases for simulation Gazebo
 alias nav1='bash /home/aesmaeily/ros2_ws/src/yahboom_rosmaster/yahboom_rosmaster_bringup/scripts/rosmaster_x3_navigation.sh'
 
-# Social navigation with Gemini AI (Hybrid Tracker)
+# Social navigation with Gemini AI (Hybrid Tracker), can you run either simultion or real
 alias social_nav='bash /home/aesmaeily/ros2_ws/src/yahboom_rosmaster/yahboom_rosmaster_bringup/scripts/launch_gemini_detector.sh'
 
 # Source ROS2 workspace
@@ -63,7 +71,7 @@ source ~/.bashrc
 
 ## Running the System
 
-### Option 1: Standard Navigation (Without AI)
+### You can run the system in two modes: Simulation or Real-World.
 
 ```bash
 # Terminal 1: Launch complete navigation stack
@@ -76,11 +84,9 @@ nav1
 # - RViz visualization
 ```
 
-### Option 2: Social Navigation with Gemini AI
+### Option 2: Social Navigation in Simulation
 
 #### Step 1: Configure Gemini API Key
-
-Edit the launch script to add your API key:
 
 ```bash
 nano /home/aesmaeily/ros2_ws/src/yahboom_rosmaster/yahboom_rosmaster_bringup/scripts/launch_gemini_detector.sh
@@ -93,8 +99,8 @@ Add your export line before the run command:
 export GEMINI_API_KEY="AIzaSy...YOUR_ACTUAL_KEY_HERE"
 # ---------------------------
 
-# Run the Hybrid Node
-ros2 run yahboom_rosmaster_navigation social_navigation_hybrid.py
+# Run the Simulation Hybrid Node
+ros2 run yahboom_rosmaster_navigation social_navigation_hybridsim.py
 ```
 
 #### Step 2: Launch the System
@@ -105,6 +111,20 @@ nav1
 
 # Terminal 2: Launch Gemini social navigation (after nav1 is fully loaded)
 social_nav
+```
+
+### Option 3: Social Navigation on Real Robot
+
+```bash
+# Terminal 1: Launch real robot navigation stack
+ros2 launch yahboom_rosmaster_bringup rosmaster_x3_real.launch.py
+
+# Terminal 2: Launch RealSense camera
+ros2 launch realsense2_camera rs_launch.py
+
+# Terminal 3: Run real-world social navigation
+export GEMINI_API_KEY="YOUR_KEY_HERE"
+ros2 run yahboom_rosmaster_navigation social_navigation_hybridreal.py
 ```
 
 ---
@@ -261,11 +281,12 @@ source /home/aesmaeily/ros2_ws/install/setup.bash
 
 | Problem | Solution |
 |---------|----------|
-| **Robot sees ghosts (Double Obstacles)** | Ensure you are running `social_navigation_hybrid.py` (New Code), not the old version |
+| **Robot sees ghosts (Double Obstacles)** | Ensure you are running `social_navigation_hybridsim.py` or `social_navigation_hybridreal.py`, not the old version |
 | **Virtual obstacles not appearing** | Check Nav2 config indentation - `virtual_obstacles` must be inside `obstacle_layer` |
 | **Camera looking at ceiling** | Change `rpy_offset` to `"0 0.1 0"` in URDF |
 | **Robot unstable in RViz** | Reduce camera `update_rate` to 5 Hz |
 | **Gemini API errors** | Verify `export GEMINI_API_KEY` is set in the launch script |
+| **RealSense not detected** | Check USB connection, run `rs-enumerate-devices` |
 
 ---
 
@@ -291,5 +312,5 @@ source /home/aesmaeily/ros2_ws/install/setup.bash
 ## Author
 
 **Abolghasem Esmaeily**  
-Social Navigation Research
+Social Navigation Research   
 February 2026

@@ -4,7 +4,8 @@ Social Navigation - Hybrid Tracker Using Depth + Visual Fallback
 =================================================
 1. SENSORS: Hybrid Depth + Visual Fallback if Depth fails.
 2. TRACKING: Uses HumanTracker class for Velocity Clamping in order to prevent teleporting obstacles by noisy or missing depth data.
-3. SMOOTHING: Low-Pass Filter to remove jitter and ghosting obstacles.
+3. SMOOTHING: Low-Pass Filter to remove jitter and ghosting obstacles. 
+This code is for SIMULATION environment.
 author: Abolghasem Esmaeily 
 """
 
@@ -73,15 +74,19 @@ class HumanTracker:
 # =========================================================================
 class SocialNavigatorHybrid(Node):
     def __init__(self):
-        super().__init__('social_navigator_hybrid')
+        super().__init__('social_navigator_hybrid_Simulation')
         
         self.declare_parameter('gemini_api_key', '')
         self.api_key = self.get_parameter('gemini_api_key').value
         
-        # Camera Topics and map frame
+        # Camera Topics, map frame and other publisher topic
         self.rgb_topic = '/cam_1/color/image_raw'
         self.pc_topic = '/cam_1/depth/color/points' 
+        self.camera_info_topic = '/cam_1/color/camera_info'
         self.target_frame = 'map' 
+        self.virtual_obstacle_topic = '/virtual_obstacles'
+        self.human_marker_topic = '/human_markers'
+
 
         if not self.api_key:
             self.get_logger().error("MISSING GEMINI API KEY, Please set a valid key.")
@@ -92,17 +97,17 @@ class SocialNavigatorHybrid(Node):
         self.model = genai.GenerativeModel('gemini-2.0-flash')
         
         self.bridge = CvBridge() # OpenCV Bridge for ROS image messages to OpenCV images 
-        self.tf_buffer = Buffer(cache_time=rclpy.duration.Duration(seconds=5.0))
+        self.tf_buffer = Buffer(cache_time=rclpy.duration.Duration(seconds=5.0)) # 5 seconds cache as the Map Frame and the Camera Frame are moving separately.
         self.tf_listener = TransformListener(self.tf_buffer, self)
 
     
         self.create_subscription(Image, self.rgb_topic, self.rgb_cb, qos_profile_sensor_data)
         # in both them I used qos_profile_sensor_data for better performance with sensor data
         self.create_subscription(PointCloud2, self.pc_topic, self.pc_cb, qos_profile_sensor_data)
-        
+        self.create_subscription(CameraInfo, self.camera_info_topic, self.info_cb, 10)
     
-        self.obstacle_pub = self.create_publisher(PointCloud2, '/virtual_obstacles', 10)
-        self.marker_pub = self.create_publisher(MarkerArray, '/human_markers', 10)
+        self.obstacle_pub = self.create_publisher(PointCloud2, self.virtual_obstacle_topic, 10)
+        self.marker_pub = self.create_publisher(MarkerArray, self.human_marker_topic, 10)
 
         self.debug_pub = self.create_publisher(Marker, '/debug_click_point', 10)
 
@@ -113,7 +118,7 @@ class SocialNavigatorHybrid(Node):
         self.cy = 240.5
         self.calibrated = False
 
-        self.create_subscription(CameraInfo, '/cam_1/color/camera_info', self.info_cb, 10)
+        
         # STATE 
         self.latest_rgb = None
         self.latest_pc = None
@@ -136,6 +141,15 @@ class SocialNavigatorHybrid(Node):
     def pc_cb(self, msg):
         with self.data_lock: self.latest_pc = msg
 
+    def info_cb(self, msg):
+        if not self.calibrated:
+            self.fx = msg.k[0]
+            self.cx = msg.k[2]
+            self.fy = msg.k[4]
+            self.cy = msg.k[5]
+            self.calibrated = True
+            #self.get_logger().info(f"Calibration Updated: fx={self.fx:.2f}, cx={self.cx:.2f}")
+
  
     def analyze_loop(self):
         """A loop that processes the latest RGB and PointCloud data using Gemini model."""
@@ -148,15 +162,6 @@ class SocialNavigatorHybrid(Node):
 
         # Threaded processing to avoid blocking the main ROS thread callbacks
         threading.Thread(target=self.process_gemini, args=(rgb_msg, pc_msg)).start()
-
-    def info_cb(self, msg):
-        if not self.calibrated:
-            self.fx = msg.k[0]
-            self.cx = msg.k[2]
-            self.fy = msg.k[4]
-            self.cy = msg.k[5]
-            self.calibrated = True
-            #self.get_logger().info(f"Calibration Updated: fx={self.fx:.2f}, cx={self.cx:.2f}")
 
     def process_gemini(self, rgb_msg, pc_msg):
         # 1. SETUP LENS MATH (Handle Missing Calibration)
@@ -198,8 +203,7 @@ class SocialNavigatorHybrid(Node):
             "engagement": "high", "medium", "low".
             "key_point": [x, y] (Center of chest).
             "bbox": [ymin, xmin, ymax, xmax] (0-1).
-            Format: {{ "humans": [ {{ "key_point": [320, 240], "bbox": [0.2, 0.4, 0.8, 0.6], "engagement": "high" }} ] }}
-            Image Size: {img_w}x{img_h}.
+            Format: {{ "humans": [ {{ "key_point": [320, 240], "bbox": [0.2, 0.4, 0.8, 0.6], "engagement": "high" }} ] }}. 
             """
             
             try:
@@ -207,11 +211,13 @@ class SocialNavigatorHybrid(Node):
                 text = resp.text.strip().replace("```json", "").replace("```", "")
                 if "'" in text: text = text.replace("'", '"')
                 data = json.loads(text[text.find('{'):text.rfind('}')+1])
-            except: return 
+            except Exception as e:
+                return
 
             humans = data.get('humans', [])
             current_detections = []
             
+            # We use the RGB timestamp and frame_id for both sensors, as they are synchronized in simulation.
             frame_id = pc_msg.header.frame_id if pc_msg else rgb_msg.header.frame_id
             stamp = pc_msg.header.stamp if pc_msg else rgb_msg.header.stamp
 
@@ -317,6 +323,7 @@ class SocialNavigatorHybrid(Node):
 
 
         """The chioce of 20 with/horison and 60 height/vertical is human aspect Ratio 1:3 Rule of thumb matches as standing human, we can adjusting for different scenario in general"""
+        # We can change search window size manually to be bigger or smaller based on the expected size of humans in the scene and the noise level of the depth sensor. A larger window can help find valid depth points if the keypoint is slightly off, but it also increases the chance of picking up wrong points (e.g., from nearby objects). A smaller window is more precise but may miss detections if the keypoint is not accurate.
         width_search = 20 
         height_search = 60
         u_min, u_max = max(0, u - width_search), min(pc_msg.width, u + width_search)
@@ -369,6 +376,7 @@ class SocialNavigatorHybrid(Node):
         marker_array.markers.append(delete_m)
 
         with self.tracker_lock:
+            # If no humans are tracked, publish empty cloud to clear Costmap
             if not self.trackers:
                 self.publish_cloud(b'', 0)
                 self.marker_pub.publish(marker_array)
