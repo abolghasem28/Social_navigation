@@ -52,13 +52,13 @@ Add these aliases to your `~/.bashrc` for quick access:
 
 ```bash
 # Navigation aliases for simulation Gazebo
-alias nav1='bash /home/aesmaeily/ros2_ws/src/yahboom_rosmaster/yahboom_rosmaster_bringup/scripts/rosmaster_x3_navigation.sh'
+alias nav1='bash /home/<user>/ros2_ws/src/yahboom_rosmaster/yahboom_rosmaster_bringup/scripts/rosmaster_x3_navigation.sh'
 
 # Social navigation with Gemini AI (Hybrid Tracker), can you run either simultion or real
-alias social_nav='bash /home/aesmaeily/ros2_ws/src/yahboom_rosmaster/yahboom_rosmaster_bringup/scripts/launch_gemini_detector.sh'
+alias social_nav='bash /home/<user>/ros2_ws/src/yahboom_rosmaster/yahboom_rosmaster_bringup/scripts/launch_gemini_detector.sh'
 
 # Source ROS2 workspace
-alias srcros='source /home/aesmaeily/ros2_ws/install/setup.bash'
+alias srcros='source /home/<user>/ros2_ws/install/setup.bash'
 ```
 
 Then reload:
@@ -260,7 +260,7 @@ Add to `~/.bashrc`:
 
 ```bash
 # Gazebo model path (required for cafe world)
-export GZ_SIM_RESOURCE_PATH=/home/aesmaeily/ros2_ws/src/yahboom_rosmaster/yahboom_rosmaster_gazebo/models:$GZ_SIM_RESOURCE_PATH
+export GZ_SIM_RESOURCE_PATH=/home/<user>/ros2_ws/src/yahboom_rosmaster/yahboom_rosmaster_gazebo/models:$GZ_SIM_RESOURCE_PATH
 
 # ROS2 workspace
 source /home/aesmaeily/ros2_ws/install/setup.bash
