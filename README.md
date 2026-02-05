@@ -263,7 +263,7 @@ Add to `~/.bashrc`:
 export GZ_SIM_RESOURCE_PATH=/home/<user>/ros2_ws/src/yahboom_rosmaster/yahboom_rosmaster_gazebo/models:$GZ_SIM_RESOURCE_PATH
 
 # ROS2 workspace
-source /home/aesmaeily/ros2_ws/install/setup.bash
+source /home/<user>/ros2_ws/install/setup.bash
 ```
 
 ---
