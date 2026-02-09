@@ -20,12 +20,11 @@ author: Abolghasem Esmaeily
 import rclpy
 from rclpy.node import Node
 from rclpy.qos import qos_profile_sensor_data, QoSProfile, DurabilityPolicy, ReliabilityPolicy
-from sensor_msgs.msg import Image, PointCloud2, PointField
+from sensor_msgs.msg import Image, PointCloud2, PointField, CameraInfo
 from visualization_msgs.msg import Marker, MarkerArray
 from geometry_msgs.msg import PointStamped
 from tf2_ros import Buffer, TransformListener
 import tf2_geometry_msgs
-from sensor_msgs.msg import CameraInfo
 from cv_bridge import CvBridge
 import cv2
 import numpy as np
@@ -216,6 +215,7 @@ class SocialNavigatorHybrid(Node):
             Find humans. Return JSON.
             "engagement": "high", "medium", "low".
             "key_point": [x, y] (Center of chest).
+            "posture": "standing", "sitting". 
             "bbox": [ymin, xmin, ymax, xmax] (0-1).
             Format: {{ "humans": [ {{ "key_point": [320, 240], "bbox": [0.2, 0.4, 0.8, 0.6], "engagement": "high" }} ] }}
             """
@@ -246,7 +246,7 @@ class SocialNavigatorHybrid(Node):
                 if not kp: continue
                 
                 # Hybrid distance logic
-                final_z = None
+                final_x, final_y, final_z = None, None, None
                 method = "VISUAL_BACKUP"
 
                 # PRIMARY: DEPTH SENSOR PointCloud
@@ -258,6 +258,8 @@ class SocialNavigatorHybrid(Node):
                     pt_3d = self.get_xyz_smart_scan(pc_msg, pc_x, pc_y)
                     
                     if pt_3d:
+                        final_x = pt_3d[0]
+                        final_y = pt_3d[1]
                         final_z = pt_3d[2]
                         method = "DEPTH_SENSOR"
 
@@ -267,22 +269,24 @@ class SocialNavigatorHybrid(Node):
                     ymin, _, ymax, _ = bbox
                     px_h = (ymax - ymin) * img_h
                     
+                    posture = human.get('posture', 'standing').lower()
+                    real_height = 1.70 if posture == 'standing' else 0.60
                     # Uses self.fy instead of 'focal_length'
                     if px_h > 10: 
                          # We use 0.65m as approx visible torso height
-                        final_z = (0.65 * self.fy) / px_h 
+                        final_z = (real_height * self.fy) / px_h 
+                        cx_pixel = kp[0]
+                        cy_pixel = kp[1]
+                        final_x = (cx_pixel - self.cx) * final_z / self.fx
+                        final_y = (cy_pixel - self.cy) * final_z / self.fy
 
-                if final_z:
-                    # Uses self.fx and self.cx instead of 'focal_length' and 'x_center'
-                    cx_pixel = kp[0]
-                    final_x = (cx_pixel - self.cx) * final_z / self.fx
-                    final_y = 0.0 
-                    
+                if final_z is not None and final_x is not None:
                     map_pt = self.transform_point(final_x, final_y, final_z, frame_id, stamp)
                     
                     if map_pt:
                         radius = 0.85 if 'high' in eng else (0.60 if 'medium' in eng else 0.35)
-                        self.get_logger().info(f"Human {i+1}: {eng.upper()} -> {final_z:.2f}m [{method}]")
+                        posture = human.get('posture', 'standing').lower()
+                        self.get_logger().info(f"Human {i+1}: {eng.upper()} , Posture: {posture.upper()} , distance -> {final_z:.2f}m [{method}]")
                         
 
                         current_detections.append({

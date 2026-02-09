@@ -29,6 +29,7 @@ import struct
 import math
 import time
 import uuid 
+import os
 
 
 class HumanTracker:
@@ -88,6 +89,8 @@ class SocialNavigatorHybrid(Node):
         self.human_marker_topic = '/human_markers'
 
 
+        if not self.api_key:
+            self.api_key = os.getenv('GEMINI_API_KEY', '')
         if not self.api_key:
             self.get_logger().error("MISSING GEMINI API KEY, Please set a valid key.")
             return
@@ -229,7 +232,7 @@ class SocialNavigatorHybrid(Node):
                 if not kp: continue
                 
                 # Hybrid distance logic
-                final_z = None
+                final_x, final_y, final_z = None, None, None
                 method = "VISUAL_BACKUP"
 
                 # PRIMARY: DEPTH SENSOR PointCloud
@@ -241,6 +244,8 @@ class SocialNavigatorHybrid(Node):
                     pt_3d = self.get_xyz_smart_scan(pc_msg, pc_x, pc_y)
                     
                     if pt_3d:
+                        final_x = pt_3d[0]
+                        final_y = pt_3d[1]
                         final_z = pt_3d[2]
                         method = "DEPTH_SENSOR"
 
@@ -250,22 +255,24 @@ class SocialNavigatorHybrid(Node):
                     ymin, _, ymax, _ = bbox
                     px_h = (ymax - ymin) * img_h
                     
+                    posture = human.get('posture', 'standing').lower()
+                    real_height = 0.75 if posture == 'standing' else 0.45
                     # Uses self.fy instead of 'focal_length'
                     if px_h > 10: 
                          # We use 0.65m as approx visible torso height
-                        final_z = (0.65 * self.fy) / px_h 
+                        final_z = (real_height * self.fy) / px_h 
+                        cx_pixel = kp[0]
+                        cy_pixel = kp[1]
+                        final_x = (cx_pixel - self.cx) * final_z / self.fx
+                        final_y = (cy_pixel - self.cy) * final_z / self.fy
 
-                if final_z:
-                    # Uses self.fx and self.cx instead of 'focal_length' and 'x_center'
-                    cx_pixel = kp[0]
-                    final_x = (cx_pixel - self.cx) * final_z / self.fx
-                    final_y = 0.0 
-                    
+                if final_z is not None and final_x is not None:
                     map_pt = self.transform_point(final_x, final_y, final_z, frame_id, stamp)
                     
                     if map_pt:
                         radius = 0.85 if 'high' in eng else (0.60 if 'medium' in eng else 0.35)
-                        self.get_logger().info(f"Human {i+1}: {eng.upper()} -> {final_z:.2f}m [{method}]")
+                        posture = human.get('posture', 'standing').lower() 
+                        self.get_logger().info(f"Human {i+1}: {eng.upper()}, Posture: {posture.upper()}, -> {final_z:.2f}m [{method}]")
                         
                         current_detections.append({
                             'x': map_pt[0], 'y': map_pt[1], 'z': map_pt[2], 'r': radius
