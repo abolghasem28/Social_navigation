@@ -12,6 +12,8 @@ in terminal2 run:
 python3 social_navigation_hybridreal.py or use the provided launch file in yahboom_rosmaster_bringup package.
 in terminal3 run:
 ros2 run rviz2 rviz2
+terminal4 runs lio:
+ros2 run tf2_ros static_transform_publisher -0.10 0 0.052 0 -1.5708 0 lio_gripper_interface_link camera_link
 author: Abolghasem Esmaeily 
 """
 
@@ -80,7 +82,7 @@ class HumanTracker:
 # =========================================================================
 class SocialNavigatorHybrid(Node):
     def __init__(self):
-        super().__init__('social_navigator_hybrid_Simulation')
+        super().__init__('social_navigator_hybrid_Real')
         
         self.declare_parameter('gemini_api_key', '')
         self.api_key = self.get_parameter('gemini_api_key').value
@@ -93,8 +95,8 @@ class SocialNavigatorHybrid(Node):
         self.human_marker_topic = '/human_markers'
         
         # TEST FRAME: We visualize relative to the camera, or if we have the map we use map
-        self.target_frame = 'camera_color_optical_frame'
-        #self.target_frame = 'map'
+        #self.target_frame = 'camera_color_optical_frame'
+        self.target_frame = 'map'
 
         if not self.api_key:
             self.get_logger().error("MISSING GEMINI API KEY, Please set a valid key.")
@@ -233,8 +235,8 @@ class SocialNavigatorHybrid(Node):
             # stamp = pc_msg.header.stamp if pc_msg else rgb_msg.header.stamp
 
             # As everthing comes from camera so both frame and stamp is realtive to camera 
-            frame_id = self.target_frame
-            stamp = self.get_clock().now().to_msg() 
+            frame_id = pc_msg.header.frame_id if pc_msg else rgb_msg.header.frame_id
+            stamp = pc_msg.header.stamp if pc_msg else rgb_msg.header.stamp
 
             for i, human in enumerate(humans):
                 kp = human.get('key_point')
@@ -276,46 +278,25 @@ class SocialNavigatorHybrid(Node):
                     final_x = (cx_pixel - self.cx) * final_z / self.fx
                     final_y = 0.0 
                     
-                    # map_pt = self.transform_point(final_x, final_y, final_z, frame_id, stamp)
+                    map_pt = self.transform_point(final_x, final_y, final_z, frame_id, stamp)
                     
-                    # As we have everthing maps relative to camera so we have 
-                        # Visual Fallback (If Depth Failed / Ghost)
-                if final_z is None and bbox and len(bbox) == 4:
-                    method = "VISUAL_BACKUP (Ghost)"
-                    ymin, _, ymax, _ = bbox
-                    px_h = (ymax - ymin) * img_h
-                    
-                    # Uses self.fy instead of 'focal_length'
-                    if px_h > 10: 
-                         # We use 0.65m as approx visible torso height
-                        final_z = (0.65 * self.fy) / px_h 
+                    if map_pt:
+                        radius = 0.85 if 'high' in eng else (0.60 if 'medium' in eng else 0.35)
+                        self.get_logger().info(f"Human {i+1}: {eng.upper()} -> {final_z:.2f}m [{method}]")
+                        
 
-                if final_z:
-                    # Uses self.fx and self.cx instead of 'focal_length' and 'x_center'
-                    cx_pixel = kp[0]
-                    final_x = (cx_pixel - self.cx) * final_z / self.fx
-                    final_y = 0.0 
-                    
-                    # map_pt = self.transform_point(final_x, final_y, final_z, frame_id, stamp)
-                    
-                    # As we have everthing maps relative to camera so we have 
-                    # map_pt is just a list of [x, y, z]
-                    map_pt = [final_x, final_y, final_z]
-                    # if map_pt:
-                    radius = 0.85 if 'high' in eng else (0.60 if 'medium' in eng else 0.35)
-                    self.get_logger().info(f"Human {i+1}: {eng.upper()} -> {final_z:.2f}m [{method}]")
-                    
-
-                    current_detections.append({
-                        'x': map_pt[0], 'y': map_pt[1], 'z': map_pt[2], 'r': radius
-                    })
+                        current_detections.append({
+                            'x': map_pt[0], 'y': map_pt[1], 'z': map_pt[2], 'r': radius
+                        })
+                        
+                    else:
+                        self.get_logger().warn(F" Could not tranform point from {frame_id} to {self.target_frame}")
 
             self.update_trackers(current_detections)
 
         except Exception as e:
             # This prints the error so you know exactly what line failed
             self.get_logger().error(f"Gemini Error: {e}")
-
 
 
     # =========================================
@@ -437,11 +418,13 @@ class SocialNavigatorHybrid(Node):
                 m.action = Marker.ADD
                 # In Map: Z is Up. In Camera: Y is Down.
                 # We place the center of the cylinder at the human's depth (Z)
-                m.pose.position.x, m.pose.position.y, m.pose.position.z = cx, cy + 0.5, tracker.z
+                m.pose.position.x, m.pose.position.y, m.pose.position.z = cx, cy + 0.5, 0.9
                 
                 # We rotate 90 degrees so the Cylinder stands UP (along Y) instead of Forward (along Z)
-                m.pose.orientation.x = 0.707
-                m.pose.orientation.w = 0.707
+                m.pose.orientation.x = 0.0
+                m.pose.orientation.y = 0.0
+                m.pose.orientation.z = 0.0
+                m.pose.orientation.w = 1.0
                 
                 m.scale.x = tracker.radius * 2.0  # Visual Social Radius
                 m.scale.y = tracker.radius * 2.0
@@ -460,8 +443,8 @@ class SocialNavigatorHybrid(Node):
                 for h_idx in range(height_layers):
                     # In Robot Code, this is height (Z) 
                     # In Camera Code, height is Y
-                    high_offset = h_idx * 0.1 # Every 10cm up
-                    current_y = base_y - high_offset
+                    z_offset = h_idx * 0.1 # Every 10cm up
+                    #current_y = base_y - high_offset
 
                 # Create a dense grid/spiral of points
                     for angle_idx in range(points_per_layer):
@@ -470,19 +453,19 @@ class SocialNavigatorHybrid(Node):
                         # We add random noise or multiple radii to make it "Solid"
                         # Ring 1 (Outer Shell)
                         px = cx + physical_radius * math.cos(angle)
-                        py = current_y
-                        pz = tracker.z + physical_radius * math.sin(angle)
+                        py = cy + physical_radius * math.sin(angle)
+                        pz = z_offset
                         cloud_points.append(struct.pack('fff', px, py, pz))
                         
                         # Ring 2 (Inner Core) - Ensures no "hollow" center
                         px_inner = cx + (physical_radius * 0.5) * math.cos(angle)
-                        py_inner = current_y
-                        pz_inner = tracker.z + (physical_radius * 0.5) * math.sin(angle)
+                        py_inner = cy + (physical_radius * 0.5) * math.sin(angle)
+                        pz_inner = z_offset
                         cloud_points.append(struct.pack('fff', px_inner, py_inner, pz_inner))
                         
                         # Center Spine
                         if angle_idx == 0:
-                            cloud_points.append(struct.pack('fff', cx, py_inner, tracker.z))
+                            cloud_points.append(struct.pack('fff', cx, cy, z_offset))
 
         # Publish the PointCloud
         if cloud_points:
