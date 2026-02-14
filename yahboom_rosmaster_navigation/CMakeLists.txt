@@ -48,6 +48,7 @@ install(PROGRAMS
   scripts/social_navigation_hybridreal.py
   scripts/tf_probe.py
   scripts/create_human_human_test_map.py
+  scripts/fake_camera.py
   DESTINATION lib/${PROJECT_NAME}
 )
 

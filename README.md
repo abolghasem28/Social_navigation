@@ -4,7 +4,7 @@
 ![ROS_2](https://img.shields.io/ros/v/jazzy/rclcpp)
 ![Gemini](https://img.shields.io/badge/Gemini-AI%20Powered-blue)
 ![Nav2](https://img.shields.io/badge/Nav2-Social%20Navigation-green)
-![Algorithm](https://img.shields.io/badge/Algorithm-Hybrid%20Tracker-purple)
+![Algorithm](https://img.shields.io/badge/Algorithm-EKF%20Hybrid%20Tracker-purple)
 
 ![Social Navigation Demo](Image.png)
 
@@ -12,7 +12,7 @@
 
 ## Overview
 
-This repository extends the base [Automatic Addison](https://automaticaddison.com) setup for the **ROSMASTER X3** robot by Yahboom. It has been significantly modified to support **social navigation research**, implementing a **Hybrid Tracker** that combines Generative AI with kinematic physics to solve human tracking issues.
+This repository extends the base [Automatic Addison](https://automaticaddison.com) setup for the **ROSMASTER X3** robot by Yahboom. It has been significantly modified to support **social navigation research**, implementing an **EKF-based Hybrid Tracker** that combines Generative AI with probabilistic state estimation to solve human tracking issues.
 
 ### Key Modifications
 
@@ -21,7 +21,7 @@ This repository extends the base [Automatic Addison](https://automaticaddison.co
 | **Nav2 Configuration** | Tuned for human-aware navigation with virtual obstacle support |
 | **Gazebo World Files** | Updated with human models for social interaction scenarios |
 | **Foundation Model Integration** | Added Gemini AI modules for human detection and engagement analysis |
-| **Hybrid Tracker** | Implemented Velocity Clamping and Exponential Smoothing to eliminate "ghosting" |
+| **EKF Hybrid Tracker** | Extended Kalman Filter with Mahalanobis data association for robust tracking |
 
 ### Core Scripts
 
@@ -29,7 +29,7 @@ To support both research environments, the logic is split into two specialized s
 
 1. **`social_navigation_hybridsim.py`**: Optimized for **Gazebo Simulation**. It handles TF transforms relative to the simulation `map` frame and synchronizes with simulated camera clocks.
 
-2. **`social_navigation_hybridreal.py`**: Optimized for **Real-World Hardware**. It includes specific handling for the **Intel RealSense D435** drivers, manages real-world sensor noise, and handles the `camera_color_optical_frame` transforms directly.
+2. **`social_navigation_hybridreal.py`**: Optimized for **Real-World Hardware**. It includes specific handling for the **Intel RealSense D435** drivers, manages real-world sensor noise (mm → m conversion), and handles the `camera_color_optical_frame` transforms directly.
 
 ---
 
@@ -54,7 +54,7 @@ Add these aliases to your `~/.bashrc` for quick access:
 # Navigation aliases for simulation Gazebo
 alias nav1='bash /home/<user>/ros2_ws/src/yahboom_rosmaster/yahboom_rosmaster_bringup/scripts/rosmaster_x3_navigation.sh'
 
-# Social navigation with Gemini AI (Hybrid Tracker), can you run either simultion or real
+# Social navigation with Gemini AI (EKF Hybrid Tracker)
 alias social_nav='bash /home/<user>/ros2_ws/src/yahboom_rosmaster/yahboom_rosmaster_bringup/scripts/launch_gemini_detector.sh'
 
 # Source ROS2 workspace
@@ -117,8 +117,10 @@ ros2 run yahboom_rosmaster_navigation social_navigation_hybridreal.py
 ros2 run rviz2 rviz2
 # Set Fixed Frame to: camera_color_optical_frame
 # Add MarkerArray topic: /human_markers
-# Add PointCloud2 topic: /virtual_obstacles
+# Add PointCloud2 topic: /social_obstacles
 ```
+
+---
 
 ## Social Navigation Features
 
@@ -126,15 +128,15 @@ ros2 run rviz2 rviz2
 
 The system uses Google's Gemini foundation model to:
 
-1. **Detect humans** in camera images (Visual Backup)
+1. **Detect humans** in camera images via bounding boxes
 2. **Assess engagement level** (conversation, standing, walking)
-3. **Track positions** using the Hybrid Algorithm below
+3. **Provide measurements** to the EKF tracker for probabilistic state estimation
 
 ### Engagement-Based Navigation
 
 | Engagement Level | Human Activity | Obstacle Radius | Robot Behavior |
 |------------------|----------------|-----------------|----------------|
-| **HIGH** | Conversation, interacting | 0.85m | Wide detour - don't interrupt |
+| **HIGH** | Conversation, interacting | 0.85m | Wide detour — don't interrupt |
 | **MEDIUM** | Standing, looking around | 0.60m | Moderate buffer |
 | **LOW** | Walking, passing through | 0.35m | Can pass closer |
 
@@ -143,73 +145,197 @@ The system uses Google's Gemini foundation model to:
 When running the social navigation node, you'll see real-time detection logs:
 
 ```
-[INFO] [social_navigator_hybrid]: Human 1: MEDIUM -> 0.56m [DEPTH_SENSOR]
-[INFO] [social_navigator_hybrid]: Human 2: HIGH -> 0.79m [VISUAL_BACKUP (Ghost)]
-[INFO] [social_navigator_hybrid]: Human 1: MEDIUM -> 0.57m [DEPTH_SENSOR]
-[INFO] [social_navigator_hybrid]: Human 2: MEDIUM -> 0.65m [VISUAL_BACKUP (Ghost)]
-[INFO] [social_navigator_hybrid]: Human 1: MEDIUM -> 0.57m [DEPTH_SENSOR]
-[INFO] [social_navigator_hybrid]: Human 2: MEDIUM -> 0.78m [VISUAL_BACKUP (Ghost)]
+[INFO] [social_navigator_hybrid]: Human 1: Eng=medium Method=DEPTH Sensor Depth=0.81m
+[INFO] [social_navigator_hybrid]: Human 2: Eng=high Method=VISUAL FALLBACK Depth=3.01m
+[INFO] [social_navigator_hybrid]: Human 1: Eng=medium Method=DEPTH Sensor Depth=0.83m
 ```
 
-**Log Format:** `Human [ID]: [ENGAGEMENT] -> [RADIUS] [SOURCE]`
+**Log Format:** `Human [ID]: Eng=[ENGAGEMENT] Method=[SOURCE] Depth=[DISTANCE]`
 
 | Field | Description |
 |-------|-------------|
 | `Human 1/2` | Detected person ID |
-| `HIGH/MEDIUM/LOW` | Engagement level (affects obstacle size) |
-| `0.57m` | Virtual obstacle radius |
-| `DEPTH_SENSOR` | Distance from depth camera (accurate) |
-| `VISUAL_BACKUP (Ghost)` | Fallback to Gemini estimate (less accurate) |
+| `Eng=high/medium/low` | Engagement level (affects obstacle behavior) |
+| `DEPTH Sensor` | Distance from depth camera (accurate) |
+| `VISUAL FALLBACK` | Pinhole camera model estimate when depth fails |
 
 ---
 
-## Algorithm Mathematics (The Hybrid Tracker)
+## Algorithm: EKF Hybrid Tracker
 
-To solve the "Ghosting" and "Jitter" problems inherent in visual detection, we implemented a physics-based filtering pipeline.
+The tracking system evolved through three iterations, each solving specific problems:
 
-### 1. Velocity Clamping (Anti-Teleportation)
+| Version | Method | Problem Solved | Remaining Issue |
+|---------|--------|----------------|-----------------|
+| V1 | Velocity Clamping + Low-Pass Filter | Reduced teleportation jumps | Jitter and ghosting persisted |
+| V2 | V1 + Hit Threshold | Eliminated ghost obstacles | 2s delay before new detections appear |
+| **V3 (Current)** | **Extended Kalman Filter** | **Probabilistic smoothing + motion prediction** | **None — best stability and accuracy** |
 
-This limits the maximum distance an object can travel in a single time step, preventing impossible jumps caused by sensor noise.
+### Why EKF?
 
-**Variables:**
+The fundamental problem is that Gemini's per-frame analysis produces **non-deterministic measurements**: the same person in the same position yields slightly different bounding boxes each frame due to pixel-level variations in color and illumination. Combined with noisy depth sensor data, this causes obstacle positions to jitter and ghost.
 
-- `P_old`: Previous position vector
-- `P_new`: Raw position measured by the sensor
-- `d_max`: Maximum allowed distance per step (e.g., `0.5m`)
+The EKF addresses both issues:
+1. **Process noise** models Gemini's frame-to-frame variation
+2. **Measurement noise** models the depth sensor uncertainty
+3. **State prediction** enables smooth obstacle movement between detection frames
 
-**Step 1: Calculate Displacement**
+A Particle Filter was considered but rejected due to computational cost — Gemini already introduces latency (~1s per frame), and particle filtering on a laptop CPU would compound this significantly.
 
-$$\Delta \mathbf{P} = \mathbf{P}_{new} - \mathbf{P}_{old}$$
+---
 
-**Step 2: Calculate Magnitude**
+### 1. EKF State Model
 
-$$d = |\Delta \mathbf{P}| = \sqrt{(x_{new} - x_{old})^2 + (y_{new} - y_{old})^2}$$
+Each tracked human is modeled with a **constant-velocity state vector**:
 
-**Step 3: Apply Clamp**
+$$\mathbf{x} = \begin{bmatrix} x \\ y \\ v_x \\ v_y \end{bmatrix}$$
 
-If the distance `d` exceeds the limit `d_max`, we scale the vector back.
+where $(x, y)$ is the position in the map frame and $(v_x, v_y)$ is the estimated velocity.
 
-$$\mathbf{P}_{clamped} = \begin{cases} \mathbf{P}_{new} & \text{if } d \le d_{max} \\ \mathbf{P}_{old} + \left( \frac{\Delta \mathbf{P}}{d} \times d_{max} \right) & \text{if } d > d_{max} \end{cases}$$
+#### Prediction Step
 
-### 2. Exponential Smoothing (Low-Pass Filter)
+The state transition follows a constant-velocity model:
 
-This filters out high-frequency noise (jitter) by blending the current state with the new input.
+$$\mathbf{x}_{k|k-1} = \mathbf{F} \cdot \mathbf{x}_{k-1|k-1}$$
 
-**Variables:**
+$$\mathbf{F} = \begin{bmatrix} 1 & 0 & \Delta t & 0 \\ 0 & 1 & 0 & \Delta t \\ 0 & 0 & 1 & 0 \\ 0 & 0 & 0 & 1 \end{bmatrix}$$
 
-- `P_t`: Final smoothed position at time `t`
-- `P_input`: The input for this step (from Clamping)
-- `α`: Smoothing factor (`0 < α ≤ 1`)
+The predicted covariance:
 
-**The Formula:**
+$$\mathbf{P}_{k|k-1} = \mathbf{F} \cdot \mathbf{P}_{k-1|k-1} \cdot \mathbf{F}^T + \mathbf{Q}$$
+
+where:
+
+$$\mathbf{Q} = \begin{bmatrix} 0.01 & 0 & 0 & 0 \\ 0 & 0.01 & 0 & 0 \\ 0 & 0 & 0.05 & 0 \\ 0 & 0 & 0 & 0.05 \end{bmatrix}$$
+
+The higher process noise on velocity $(0.05)$ versus position $(0.01)$ reflects that velocity changes are expected between frames (people start and stop), while position should evolve smoothly.
+
+A **velocity decay factor** of $0.85$ is applied after each prediction to bias stationary humans toward zero velocity:
+
+$$v_x \leftarrow 0.85 \cdot v_x, \quad v_y \leftarrow 0.85 \cdot v_y$$
+
+#### Update Step
+
+When a new Gemini detection arrives, the measurement is the position in the map frame:
+
+$$\mathbf{z}_k = \begin{bmatrix} x_{measured} \\ y_{measured} \end{bmatrix}$$
+
+The measurement matrix extracts position from the state:
+
+$$\mathbf{H} = \begin{bmatrix} 1 & 0 & 0 & 0 \\ 0 & 1 & 0 & 0 \end{bmatrix}$$
+
+**Innovation** (difference between measurement and prediction):
+
+$$\mathbf{y}_k = \mathbf{z}_k - \mathbf{H} \cdot \mathbf{x}_{k|k-1}$$
+
+**Innovation covariance**:
+
+$$\mathbf{S}_k = \mathbf{H} \cdot \mathbf{P}_{k|k-1} \cdot \mathbf{H}^T + \mathbf{R}$$
+
+where $\mathbf{R} = \mathbf{I}_2 \cdot 1.0$ represents the measurement noise. The value $R = 1.0$ indicates high measurement uncertainty, meaning the filter trusts its own prediction more than any single Gemini detection.
+
+**Kalman Gain**:
+
+$$\mathbf{K}_k = \mathbf{P}_{k|k-1} \cdot \mathbf{H}^T \cdot \mathbf{S}_k^{-1}$$
+
+**State update**:
+
+$$\mathbf{x}_{k|k} = \mathbf{x}_{k|k-1} + \mathbf{K}_k \cdot \mathbf{y}_k$$
+
+**Covariance update**:
+
+$$\mathbf{P}_{k|k} = (\mathbf{I}_4 - \mathbf{K}_k \cdot \mathbf{H}) \cdot \mathbf{P}_{k|k-1}$$
+
+#### Z-Axis (Depth) Smoothing
+
+The depth coordinate is filtered separately with a low-pass filter since vertical motion is not modeled by the 2D EKF:
+
+$$z_t = 0.85 \cdot z_{t-1} + 0.15 \cdot z_{measured}$$
+
+---
+
+### 2. Mahalanobis Distance for Data Association
+
+A critical component is **matching new detections to existing tracks**. Euclidean distance treats all directions equally, which fails when tracks have different uncertainty shapes. Instead, we use **Mahalanobis distance**, which weights the residual by the inverse of the innovation covariance.
+
+#### Why Not Euclidean Distance?
+
+| Property | Euclidean | Mahalanobis |
+|----------|-----------|-------------|
+| Uses covariance? | No — fixed radius gate | Yes — adaptive elliptical gate |
+| Handles anisotropic uncertainty? | No | Yes |
+| Adapts to track confidence? | No | Yes — new tracks have wider gates |
+| Ghost track prevention | Poor | Strong — rejects unlikely matches |
+
+#### The Formula
+
+For a detection $\mathbf{z}$ and a track with predicted state $\mathbf{x}$:
+
+$$d^2_M = \mathbf{y}^T \cdot \mathbf{S}^{-1} \cdot \mathbf{y}$$
+
+where:
+- $\mathbf{y} = \mathbf{z} - \mathbf{H} \cdot \mathbf{x}$ is the innovation residual
+- $\mathbf{S} = \mathbf{H} \cdot \mathbf{P} \cdot \mathbf{H}^T + \mathbf{R}$ is the innovation covariance
+
+#### Chi-Squared Gating
+
+Under the assumption that the innovation is Gaussian, $d^2_M$ follows a **chi-squared distribution** with degrees of freedom equal to the measurement dimension (2 for our x, y measurements).
+
+We apply a **99% confidence gate**:
+
+$$d^2_M < \chi^2_{2, 0.99} = 9.21$$
+
+This means we only accept an association if it falls within the 99th percentile of the expected distribution. Detections outside this gate are treated as **new tracks** rather than being incorrectly assigned to existing ones.
+
+| Confidence Level | $\chi^2$ Threshold (2 DOF) | Meaning |
+|------------------|---------------------------|---------|
+| 95% | 5.99 | Tighter gate — may miss valid associations |
+| **99%** | **9.21** | **Used in our system — good balance** |
+| 99.5% | 10.60 | Looser gate — may allow false associations |
+
+#### Implementation
+
+```python
+# Innovation residual
+y_res = z_meas - H @ t.state
+
+# Innovation covariance
+S = H @ t.P @ H.T + t.R
+
+# Mahalanobis distance squared
+d2 = y_res.T @ np.linalg.inv(S) @ y_res
+d2_val = float(d2[0, 0])
+
+# 99% chi-squared gate (2 DOF)
+if d2_val < 9.21 and d2_val < min_dist:
+    best_tracker = t
+```
+
+---
+
+### 3. Legacy Methods (V1 — Retained as Fallback)
+
+The original Velocity Clamping and Exponential Smoothing methods are retained in the simulation script as a simpler alternative.
+
+#### Velocity Clamping (Anti-Teleportation)
+
+Limits the maximum displacement per time step to prevent impossible jumps:
+
+$$\mathbf{P}_{clamped} = \begin{cases} \mathbf{P}_{new} & \text{if } d \le d_{max} \\ \mathbf{P}_{old} + \frac{\Delta \mathbf{P}}{|\Delta \mathbf{P}|} \cdot d_{max} & \text{if } d > d_{max} \end{cases}$$
+
+where $d = |\mathbf{P}_{new} - \mathbf{P}_{old}|$ and $d_{max} = 0.3\text{m}$.
+
+#### Exponential Smoothing (Low-Pass Filter)
+
+Blends the current measurement with the previous state:
 
 $$\mathbf{P}_{t} = \alpha \cdot \mathbf{P}_{input} + (1 - \alpha) \cdot \mathbf{P}_{t-1}$$
 
-### 3. The Combined Algorithm
+where $\alpha = 0.2$.
 
-In the `social_navigation_hybrid.py` node, these apply sequentially:
+#### Combined Legacy Formula
 
-$$\mathbf{P}_{final} = \underbrace{\alpha \cdot \left[ \mathbf{P}_{old} + \min\left(1, \frac{d_{max}}{|\mathbf{P}_{sensor} - \mathbf{P}_{old}|} \right) (\mathbf{P}_{sensor} - \mathbf{P}_{old}) \right]}_{\text{New Contribution}} + \underbrace{(1 - \alpha) \cdot \mathbf{P}_{old}}_{\text{History Inertia}}$$
+$$\mathbf{P}_{final} = \alpha \cdot \left[ \mathbf{P}_{old} + \min\left(1, \frac{d_{max}}{|\mathbf{P}_{sensor} - \mathbf{P}_{old}|} \right) (\mathbf{P}_{sensor} - \mathbf{P}_{old}) \right] + (1 - \alpha) \cdot \mathbf{P}_{old}$$
 
 ---
 
@@ -239,12 +365,12 @@ Ensure your `nav2_params.yaml` has virtual obstacles configured:
 ```yaml
 obstacle_layer:
   plugin: "nav2_costmap_2d::ObstacleLayer"
-  observation_sources: scan virtual_obstacles
+  observation_sources: scan social_obstacles
   scan:
     topic: /scan
     # ... scan params ...
-  virtual_obstacles:              # Must be INSIDE obstacle_layer!
-    topic: /virtual_obstacles
+  social_obstacles:
+    topic: /social_obstacles
     data_type: "PointCloud2"
     marking: true
     clearing: false
@@ -272,10 +398,12 @@ source /home/<user>/ros2_ws/install/setup.bash
 
 | Problem | Solution |
 |---------|----------|
-| **Robot sees ghosts (Double Obstacles)** | Ensure you are running `social_navigation_hybridsim.py` or `social_navigation_hybridreal.py`, not the old version |
-| **Virtual obstacles not appearing** | Check Nav2 config indentation - `virtual_obstacles` must be inside `obstacle_layer` |
+| **Robot sees ghosts (Double Obstacles)** | Ensure you are running the latest EKF-based script, not the legacy version |
+| **Social obstacles not appearing** | Check Nav2 config — `social_obstacles` must be inside `obstacle_layer` |
+| **Depth always shows VISUAL FALLBACK** | RealSense returns mm, not meters — ensure depth filter uses `> 100` and `< 8000` with `/1000.0` conversion |
+| **Transform errors** | Verify TF chain: `map → base_link → camera_link → camera_color_optical_frame`. Run `ros2 run tf2_tools view_frames` |
 | **Camera looking at ceiling** | Change `rpy_offset` to `"0 0.1 0"` in URDF |
-| **Robot unstable in RViz** | Reduce camera `update_rate` to 5 Hz |
+| **System slow / frozen image** | Throttle debug image publishing — avoid `imgmsg_to_cv2` at 10Hz on the robot |
 | **Gemini API errors** | Verify `export GEMINI_API_KEY` is set in the launch script |
 | **RealSense not detected** | Check USB connection, run `rs-enumerate-devices` |
 
@@ -293,8 +421,8 @@ source /home/<user>/ros2_ws/install/setup.bash
 
 ## Credits
 
-- **Base Setup:** [Automatic Addison](https://automaticaddison.com) - ROSMASTER X3 ROS 2 tutorials
-- **Robot Hardware:** [Yahboom](https://www.yahboom.net/) - ROSMASTER X3 robot platform
+- **Base Setup:** [Automatic Addison](https://automaticaddison.com) — ROSMASTER X3 ROS 2 tutorials
+- **Robot Hardware:** [Yahboom](https://www.yahboom.net/) — ROSMASTER X3 robot platform
 - **AI Integration:** Google Gemini API for human detection and engagement analysis
 - **Algorithm Design:** Abolghasem Esmaeily
 
@@ -303,5 +431,6 @@ source /home/<user>/ros2_ws/install/setup.bash
 ## Author
 
 **Abolghasem Esmaeily**  
-Social Navigation Research   
+Social Navigation Research — MSc Thesis  
+KTH Royal Institute of Technology / Idiap Research Institute  
 February 2026

@@ -201,7 +201,7 @@ local_costmap:
       obstacle_layer:
         plugin: "nav2_costmap_2d::ObstacleLayer"
         enabled: True
-        observation_sources: scan virtual_obstacles
+        observation_sources: scan social_obstacles
         scan:
           topic: /scan
           raytrace_min_range: 0.20
@@ -211,8 +211,8 @@ local_costmap:
           marking: True
           data_type: "LaserScan"
 
-        virtual_obstacles:  # ← ADD THIS ENTIRE BLOCK
-          topic: /virtual_obstacles
+        social_obstacles:  # ← ADD THIS ENTIRE BLOCK
+          topic: /social_obstacles
           data_type: PointCloud2
           marking: true
           clearing: false
@@ -274,7 +274,7 @@ global_costmap:
       obstacle_layer:
         plugin: "nav2_costmap_2d::ObstacleLayer"
         enabled: True
-        observation_sources: scan virtual_obstacles
+        observation_sources: scan social_obstacles
         scan:
           topic: /scan
           raytrace_min_range: 0.20
@@ -284,8 +284,8 @@ global_costmap:
           marking: True
           data_type: "LaserScan"
         
-        virtual_obstacles:  # ← ADD THIS ENTIRE BLOCK
-          topic: /virtual_obstacles
+        social_obstacles:  # ← ADD THIS ENTIRE BLOCK
+          topic: /social_obstacles
           data_type: PointCloud2
           marking: true
           clearing: false
