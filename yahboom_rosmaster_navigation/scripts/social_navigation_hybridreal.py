@@ -28,7 +28,7 @@ terminal4 runs lio:
 ros2 run tf2_ros static_transform_publisher -0.10 0 0.052 0 -1.5708 0 lio_gripper_interface_link camera_link
 
 terminal5 runs map:
-ros2 run tf2_ros static_transform_publisher 0 0 0 0 0 0 map camera_link
+ros2 run tf2_ros static_transform_publisher 0 0 0.5 0 0 0 LIO_base_link camera_link
 
 author: Abolghasem Esmaeily 
 """
@@ -66,7 +66,8 @@ class HumanTracker:
         self.P = np.eye(4) * 0.5   
         self.Q = np.diag([0.01, 0.01, 0.05, 0.05]) 
         self.R = np.eye(2) * 1.0   # Higher R = trust prediction more, lower R = trust measurement more
-        self.z = z # 
+        self.z = z #
+        self.alpha = 0.15 # For low-pass filtering of Z
         self.radius = radius
         self.engagement = engagement 
         self.last_update = time.time()
@@ -74,16 +75,16 @@ class HumanTracker:
 
     def predict_only(self):
         # Simple constant velocity model for prediction step
-        # F is the state transition matrix
+        # A is the state transition matrix
         now = time.time()
         dt = now - self.last_update
 
         if dt <= 0.0: 
             return
         
-        F = np.array([[1, 0, dt, 0], [0, 1, 0, dt], [0, 0, 1, 0 ], [0, 0, 0, 1 ]])
-        self.state = F @ self.state
-        self.P = F @ self.P @ F.T + self.Q
+        A = np.array([[1, 0, dt, 0], [0, 1, 0, dt], [0, 0, 1, 0 ], [0, 0, 0, 1 ]])
+        self.state = A @ self.state
+        self.P = A @ self.P @ A.T + self.Q
         self.state[2] *= 0.85
         self.state[3] *= 0.85 
 
@@ -91,9 +92,9 @@ class HumanTracker:
         self.last_update = time.time()
         dt = 0.1
         # Predict first
-        #F = np.array([[1, 0, dt, 0], [0, 1, 0, dt], [0, 0, 1, 0 ], [0, 0, 0, 1 ]])
-        #self.state = F @ self.state
-        #self.P = F @ self.P @ F.T + self.Q
+        # A = np.array([[1, 0, dt, 0], [0, 1, 0, dt], [0, 0, 1, 0 ], [0, 0, 0, 1 ]])
+        # self.state = A @ self.state
+        # self.P = A @ self.P @ A.T + self.Q
         # Update with Measurement
         # H is the measurement matrix that maps the state to the measurement space (x,y)
         # y is innovation, the measurement residual, S is the innovation/residual covariance, K is the Kalman Gain
@@ -112,9 +113,9 @@ class HumanTracker:
         self.state[2] *= 0.85
         self.state[3] *= 0.85
         
-        # Low-Pass Filter for Z (Depth)
+         # Low-Pass Filter for Z (Depth) to reduce high-frequency fluactuations. 
         if measured_z is not None and measured_z > 0.1:
-            self.z = (self.z * 0.85) + (measured_z * 0.15)
+            self.z = (self.z * (1.0 - self.alpha)) + (measured_z * self.alpha)
 
         self.radius = 0.9 * self.radius + 0.1 * new_radius
         self.hits += 1
@@ -137,8 +138,10 @@ class SocialNavigatorHybrid(Node):
         self.human_marker_topic = '/human_markers'
 
         if not self.api_key:
-            self.get_logger().error("MISSING GEMINI API KEY.")
-            return
+            self.api_key = os.getenv('GEMINI_API_KEY', '')
+            if not self.api_key:
+                self.get_logger().error("MISSING GEMINI API KEY.")
+                return
 
         genai.configure(api_key=self.api_key)
         self.model = genai.GenerativeModel('gemini-2.0-flash')
@@ -373,9 +376,9 @@ class SocialNavigatorHybrid(Node):
                 for t in self.trackers:
                     if t in used_trackers: continue
                     H = np.array([[1, 0, 0, 0], [0, 1, 0, 0]])
-                    z_meas = np.array([[det['x']], [det['y']]])
+                    z_measured = np.array([[det['x']], [det['y']]])
                     z_pred = H @ t.state
-                    y_res = z_meas - z_pred
+                    y_res = z_measured - z_pred
                     S = H @ t.P @ H.T + t.R
                     try:
                         # Mahalanobis distance to determine if this detection matches the tracker's prediction
@@ -520,7 +523,7 @@ class SocialNavigatorHybrid(Node):
                 self.add_cylinder_points(cloud_points, tracker.state[0,0], tracker.state[1,0], 0.35)
 
                 if live_img is not None:
-                    txt = f"EKF ID:{tracker.id%100}"
+                    txt = f"EKF ID:{tracker.id%100} Eng:{tracker.engagement[0].upper()}"
                     y_pos = 30 + (hits_trackers.index(tracker) * 30)
                     cv2.putText(live_img, txt, (10, y_pos), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 0), 2)
 
@@ -534,7 +537,7 @@ class SocialNavigatorHybrid(Node):
 
 
 
-                # Visual Wall in Rviz
+                # Rviz for the wall
                 m = Marker()
                 m.header.frame_id = self.target_frame
                 m.header.stamp = self.get_clock().now().to_msg()

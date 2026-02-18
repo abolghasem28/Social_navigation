@@ -1,887 +1,395 @@
 #!/usr/bin/env python3
 """
-Social Navigation - Simple Prompt Version (Full Features)
-==========================================================
+NODE 2: Social Navigator (Step 3 & 4)
+=====================================
+1. Filtering (EKF): Stabilizes the noisy input from Node 1.
+2. Intelligence (Gemini): Determines engagement.
+3. Reporting: Prints 'Raw vs Filtered' statistics to prove stability.
 
-This version uses a SIMPLE, NATURAL prompt that anyone can understand.
-Includes ALL features: Depth Camera, LiDAR, Sensor Fusion.
+In terminal 1:
+ros2 run tf2_ros static_transform_publisher -0.10 0 0.052 0 -1.5708 0 lio_gripper_interface_link camera_link
 
-Accuracy: ~15-20 cm (slightly less than bbox version due to no bounding box)
+In terminal 2:
+ros2 run tf2_ros static_transform_publisher 0 0 0.5 0 0 0 LIO_base_link camera_link
 
-Usage:
-  ros2 run yahboom_rosmaster_navigation social_navigation_simple.py \
-    --ros-args -p gemini_api_key:="YOUR_API_KEY"
+In terminal 3:
+python3 /home/aesmaeily/ros2_ws/src/yahboom_rosmaster/yahboom_rosmaster_navigation/scripts/navigation_mediapipe_test.py
 
 Author: Abolghasem Esmaeily
-Date: December 2025
 """
 
 import rclpy
 from rclpy.node import Node
-from sensor_msgs.msg import Image, PointCloud2, PointField, LaserScan
-from nav_msgs.msg import Odometry
+from rclpy.qos import qos_profile_sensor_data
+from sensor_msgs.msg import Image, PointCloud2, PointField
+from geometry_msgs.msg import PoseArray, PointStamped
+from visualization_msgs.msg import Marker, MarkerArray
+from tf2_ros import Buffer, TransformListener
 from cv_bridge import CvBridge
+from tf2_geometry_msgs import do_transform_point
 import cv2
+import numpy as np
 import google.generativeai as genai
 from PIL import Image as PILImage
 import json
-import numpy as np
 import threading
-import time
+from concurrent.futures import ThreadPoolExecutor
 import struct
 import math
-from tf2_ros import Buffer, TransformListener
-from rclpy.duration import Duration
+import time
+import uuid 
+import os
 
+# --- STEP 3: EKF STABILIZER ---
+class HumanTracker:
+    def __init__(self, x, y, z, engagement="low"):
+        self.id = uuid.uuid4().int & (1<<32)-1
+        
+        # EKF State [x, y, vx, vy]
+        # Here is P initialization with some uncertainty
+        # Q is the process noise, R is the measurement noise
+        # State is initialized with the first measurement (x,y) and zero velocity.
+        self.state = np.array([[x], [y], [0.0], [0.0]]) 
+        self.P = np.eye(4) * 0.5   
+        
+        # TUNED MATRICES FOR STABILITY
+        # Low Process Noise: How fast do we think humans can change speed?
+        # For slow move humans, we can set this low to trust our predictions more, like below.
+        #self.Q = np.diag([0.01, 0.01, 0.05, 0.05]) 
 
-class SocialNavigatorSimple(Node):
-    """
-    Social navigation using SIMPLE, NATURAL prompts.
-    Anyone can understand and modify the prompt.
-    
-    Includes all features: Depth Camera, LiDAR, Sensor Fusion.
-    """
-    
+        # High Measurement Noise: Don't trust the camera completely.
+        #self.R = np.eye(2) * 0.5  
+
+        # For fast moving humans, we can set this higher to be more responsive, like below.
+        self.Q = np.diag([0.05, 0.05, 0.2, 0.2])
+         
+        # Low Measurement Noise: Trust more the camera, Faster movement
+        self.R = np.eye(2) * 0.3
+
+        self.z = z
+        self.engagement = engagement 
+        self.last_update = time.time()
+        self.alpha = 0.2  # For low-pass filtering of Z (Depth)
+        # LOGS FOR REPORT
+        self.history_raw = []
+        self.history_ekf = []
+        self.frame_count = 0
+
+    def predict(self):
+        # Predict first
+        # A = np.array([[1, 0, dt, 0], [0, 1, 0, dt], [0, 0, 1, 0 ], [0, 0, 0, 1 ]])
+        # self.state = A @ self.state
+        # self.P = A @ self.P @ A.T + self.Q
+        # Update with Measurement
+        # H is the measurement matrix that maps the state to the measurement space (x,y)
+        # y is innovation, the measurement residual, S is the innovation/residual covariance, K is the Kalman Gain
+        dt = 0.1
+        A = np.array([[1, 0, dt, 0], [0, 1, 0, dt], [0, 0, 1, 0 ], [0, 0, 0, 1 ]])
+        self.state = A @ self.state
+        self.P = A @ self.P @ A.T + self.Q
+        # Friction
+        self.state[2, 0] *= 0.8
+        self.state[3, 0] *= 0.8 
+
+    def update(self, measured_x, measured_y, measured_z):
+        self.last_update = time.time()
+        
+        # Log Raw Input
+        self.history_raw.append((measured_x, measured_y, measured_z))
+        
+        # EKF Math
+        H = np.array([[1, 0, 0, 0], [0, 1, 0, 0]])
+        z = np.array([[measured_x], [measured_y]])
+        y = z - H @ self.state
+        S = H @ self.P @ H.T + self.R
+        K = self.P @ H.T @ np.linalg.inv(S)
+        self.state = self.state + K @ y
+        self.P = (np.eye(4) - K @ H) @ self.P
+        
+        # Low Pass Filter for Z (Depth) since EKF is only on X,Y
+        if measured_z:
+            self.z = measured_z
+            #print(f"Updated Z with low-pass filter: {self.z:.2f}m")
+        
+        # Log Filtered Output
+        self.history_ekf.append((float(self.state[0, 0]), float(self.state[1, 0]), self.z))
+        self.frame_count += 1
+
+class SocialNavigator(Node):
     def __init__(self):
-        super().__init__('social_navigator_simple')
-        
-        # ============ PARAMETERS ============
+        super().__init__('social_navigator_main')
         self.declare_parameter('gemini_api_key', '')
-        self.declare_parameter('camera_topic', '/cam_1/color/image_raw')
-        self.declare_parameter('depth_topic', '/cam_1/depth/color/points')  # PointCloud2 from RGB-D
-        self.declare_parameter('lidar_topic', '/scan')
-        self.declare_parameter('analysis_rate', 2.0)
-        self.declare_parameter('obstacle_publish_rate', 10.0)
-        self.declare_parameter('obstacle_ttl', 5.0)
-        self.declare_parameter('detection_distance', 8.0)
-        # Distance estimation method: 'gemini', 'depth', 'lidar', 'fusion'
-        self.declare_parameter('distance_method', 'fusion')
-        # Camera parameters (from URDF)
-        self.declare_parameter('camera_fov_h', 1.2)  # Horizontal FOV in radians (~69°)
-        self.declare_parameter('image_width', 640)
-        self.declare_parameter('image_height', 480)
-        
-        api_key = self.get_parameter('gemini_api_key').value
-        camera_topic = self.get_parameter('camera_topic').value
-        depth_topic = self.get_parameter('depth_topic').value
-        lidar_topic = self.get_parameter('lidar_topic').value
-        analysis_rate = self.get_parameter('analysis_rate').value
-        publish_rate = self.get_parameter('obstacle_publish_rate').value
-        self.obstacle_ttl = self.get_parameter('obstacle_ttl').value
-        self.detection_distance = self.get_parameter('detection_distance').value
-        self.distance_method = self.get_parameter('distance_method').value
-        self.camera_fov_h = self.get_parameter('camera_fov_h').value
-        self.image_width = self.get_parameter('image_width').value
-        self.image_height = self.get_parameter('image_height').value
-        
-        # ============ VALIDATE API KEY ============
-        if not api_key:
-            self.get_logger().error('=' * 60)
-            self.get_logger().error('❌ GEMINI API KEY REQUIRED!')
-            self.get_logger().error('Run with: -p gemini_api_key:="YOUR_KEY"')
-            self.get_logger().error('Get key from: https://aistudio.google.com/app/apikey')
-            self.get_logger().error('=' * 60)
-            return
-        
-        # ============ INITIALIZE GEMINI ============
-        genai.configure(api_key=api_key)
-        try:
-            self.model = genai.GenerativeModel('gemini-2.0-flash')
-            self.get_logger().info('✓ Using Gemini 2.0 Flash')
-        except Exception:
-            try:
-                self.model = genai.GenerativeModel('gemini-1.5-flash')
-                self.get_logger().info('✓ Using Gemini 1.5 Flash')
-            except Exception as e:
-                self.get_logger().error(f'Failed to initialize Gemini: {e}')
+        self.api_key = self.get_parameter('gemini_api_key').value
+
+
+        if not self.api_key:
+            self.api_key = os.getenv('GEMINI_API_KEY', '')
+            if not self.api_key:
+                self.get_logger().error("MISSING GEMINI API KEY.")
                 return
+            
+        # TOPICS
+        self.pose_topic = '/detected_humans'
+        self.rgb_topic = '/camera/camera/color/image_raw'
+        self.target_frame = 'LIO_base_link' 
+
+        genai.configure(api_key=self.api_key)
+        self.model = genai.GenerativeModel('gemini-2.0-flash')
         
-        # ============ CV BRIDGE ============
         self.bridge = CvBridge()
-        
-        # ============ TF2 FOR ROBOT POSE ============
         self.tf_buffer = Buffer()
         self.tf_listener = TransformListener(self.tf_buffer, self)
         
-        # ============ SUBSCRIBERS ============
-        self.camera_sub = self.create_subscription(
-            Image, camera_topic, self.camera_callback, 10)
-        self.depth_sub = self.create_subscription(
-            PointCloud2, depth_topic, self.depth_callback, 10)  # Changed to PointCloud2
-        self.lidar_sub = self.create_subscription(
-            LaserScan, lidar_topic, self.lidar_callback, 10)
-        self.odom_sub = self.create_subscription(
-            Odometry, '/odometry/filtered', self.odom_callback, 10)
-        
-        # ============ PUBLISHERS ============
-        self.obstacle_pub = self.create_publisher(
-            PointCloud2, '/virtual_obstacles', 10)
-        
-        # ============ STATE ============
-        self.latest_image = None
-        self.latest_depth = None
-        self.latest_lidar = None
-        self.image_lock = threading.Lock()
-        self.depth_lock = threading.Lock()
-        self.lidar_lock = threading.Lock()
-        self.analyzing = False
-        self.robot_moving = False
-        
-        # Obstacle storage
-        self.current_obstacles = []
-        self.obstacles_lock = threading.Lock()
-        
-        # ============ TIMERS ============
-        self.publish_timer = self.create_timer(1.0 / publish_rate, self.publish_obstacles)
-        self.analysis_timer = self.create_timer(1.0 / analysis_rate, self.analyze_scene)
-        
-        # ============ STARTUP MESSAGE ============
-        self.get_logger().info('=' * 70)
-        self.get_logger().info(' GEMINI SOCIAL NAVIGATOR v2.0 - ENHANCED DISTANCE ESTIMATION')
-        self.get_logger().info('=' * 70)
-        self.get_logger().info(f' Camera topic: {camera_topic}')
-        self.get_logger().info(f' Depth topic: {depth_topic}')
-        self.get_logger().info(f' LiDAR topic: {lidar_topic}')
-        self.get_logger().info(f' Distance method: {self.distance_method.upper()}')
-        self.get_logger().info('')
-        self.get_logger().info('Distance Estimation Methods:')
-        self.get_logger().info('  gemini → Categorical (±1-2m accuracy)')
-        self.get_logger().info('  depth  → Depth camera (±0.1m accuracy)')
-        self.get_logger().info('  lidar  → LiDAR scan (±0.05m accuracy)')
-        self.get_logger().info('  fusion → Depth + LiDAR combined (best)')
-        self.get_logger().info('')
-        self.get_logger().info('Engagement → Obstacle Radius:')
-        self.get_logger().info('  HIGH (conversation)  → 1.2m radius')
-        self.get_logger().info('  MEDIUM (standing)    → 0.8m radius')
-        self.get_logger().info('  LOW (walking)        → 0.5m radius')
-        self.get_logger().info('=' * 70)
+        self.create_subscription(PoseArray, self.pose_topic, self.pose_cb, 10)
+        self.create_subscription(Image, self.rgb_topic, self.rgb_cb, qos_profile_sensor_data)
+        self.obstacle_pub = self.create_publisher(PointCloud2, '/social_obstacles', 10)
+        self.marker_pub = self.create_publisher(MarkerArray, '/human_markers', 10)
 
-    # ============ CALLBACKS ============
-    
-    def camera_callback(self, msg):
-        """Store latest RGB camera image."""
-        with self.image_lock:
-            self.latest_image = msg
-    
-    def depth_callback(self, msg):
-        """Store latest depth point cloud."""
-        with self.depth_lock:
-            self.latest_depth = msg
-    
-    def lidar_callback(self, msg):
-        """Store latest LiDAR scan."""
-        with self.lidar_lock:
-            self.latest_lidar = msg
-    
-    def odom_callback(self, msg):
-        """Track if robot is moving."""
-        vel = msg.twist.twist
-        speed = math.sqrt(vel.linear.x**2 + vel.linear.y**2)
-        self.robot_moving = speed > 0.01
+        self.trackers = []
+        self.latest_rgb = None
+        self.gemini_busy = False
+        self.thread_executor = ThreadPoolExecutor(max_workers=1)
 
-    # ============ ROBOT POSE ============
-    
-    def get_robot_pose(self):
-        """Get robot pose in map frame using TF."""
-        try:
-            if not self.tf_buffer.can_transform('map', 'base_link', 
-                                                 rclpy.time.Time(),
-                                                 timeout=Duration(seconds=0.1)):
-                return None
-            
-            tf = self.tf_buffer.lookup_transform('map', 'base_link', rclpy.time.Time())
-            t = tf.transform.translation
-            q = tf.transform.rotation
-            
-            siny_cosp = 2 * (q.w * q.z + q.x * q.y)
-            cosy_cosp = 1 - 2 * (q.y * q.y + q.z * q.z)
-            yaw = math.atan2(siny_cosp, cosy_cosp)
-            
-            return float(t.x), float(t.y), float(yaw)
-        except Exception:
-            return None
+        self.create_timer(0.1, self.analyse_loop)
+        self.create_timer(2.0, self.trigger_gemini)
+        
+        self.get_logger().info("Node 2 Started. Waiting for data to generate report...")
 
-    # ============ DISTANCE ESTIMATION METHODS ============
-    
-    def get_distance_from_gemini(self, distance_str):
-        """
-        Original method: Convert Gemini's categorical distance to meters.
-        Accuracy: ±1-2 meters
-        """
-        if distance_str == 'near':
-            return 1.5
-        elif distance_str == 'medium':
-            return 3.0
-        else:
-            return 5.0
-    
-    def get_distance_from_depth(self, bbox_center_x, bbox_center_y):
-        """
-        Get precise distance from depth PointCloud2 at human's angular position.
-        Also returns refined angle based on where the closest cluster of points is.
-        
-        Args:
-            bbox_center_x: Normalized x position (0-1) of human in image
-            bbox_center_y: Normalized y position (0-1) of human in image
-        
-        Returns:
-            (distance, refined_angle) tuple, or (None, None) if unavailable
-        """
-        with self.depth_lock:
-            if self.latest_depth is None:
-                return None, None
-            cloud_msg = self.latest_depth
-        
-        try:
-            # Parse PointCloud2 message
-            points = self._parse_pointcloud2(cloud_msg)
-            
-            if points is None or len(points) == 0:
-                self.get_logger().debug('Depth: No points parsed')
-                return None, None
-            
-            # Calculate target angle from bbox position
-            target_angle = (0.5 - bbox_center_x) * self.camera_fov_h
-            
-            # Filter points in the direction of the human (±25 degrees - wider)
-            angle_tolerance = 0.44  # ~25 degrees
-            
-            valid_points = []  # Store (distance, angle, point) tuples
-            for point in points:
-                x, y, z = point[0], point[1], point[2]
-                
-                if not (np.isfinite(x) and np.isfinite(y) and np.isfinite(z)):
-                    continue
-                
-                # Skip points too close to camera or too far
-                if abs(z) < 0.3 or abs(z) > self.detection_distance:
-                    continue
-                
-                # Calculate horizontal angle (camera optical frame: z=forward, x=right)
-                point_angle = math.atan2(-x, z)
-                horizontal_dist = math.sqrt(x**2 + z**2)
-                
-                # Check if point is in the target direction
-                if abs(point_angle - target_angle) < angle_tolerance:
-                    valid_points.append((horizontal_dist, point_angle))
-            
-            if len(valid_points) == 0:
-                self.get_logger().debug(f'Depth: No valid points in direction {math.degrees(target_angle):.1f}°')
-                return None, None
-            
-            # Sort by distance
-            valid_points.sort(key=lambda p: p[0])
-            
-            # Take the closest 25% of points and find their median angle
-            num_closest = max(1, len(valid_points) // 4)
-            closest_points = valid_points[:num_closest]
-            
-            # Distance: 25th percentile of all valid points
-            all_distances = [p[0] for p in valid_points]
-            distance = float(np.percentile(all_distances, 25))
-            
-            # Angle: median of the closest points' angles
-            closest_angles = [p[1] for p in closest_points]
-            refined_angle = float(np.median(closest_angles))
-            
-            self.get_logger().debug(
-                f'Depth: Found {len(valid_points)} points, dist={distance:.2f}m, angle={math.degrees(refined_angle):.1f}°'
-            )
-            
-            return distance, refined_angle
-            
-        except Exception as e:
-            self.get_logger().warn(f'PointCloud depth extraction failed: {e}')
-            return None, None
-    
-    def _parse_pointcloud2(self, cloud_msg):
-        """
-        Parse PointCloud2 message into numpy array of points.
-        Returns array of shape (N, 3) with x, y, z coordinates.
-        """
-        try:
-            # Get field offsets
-            field_names = [f.name for f in cloud_msg.fields]
-            
-            if 'x' not in field_names or 'y' not in field_names or 'z' not in field_names:
-                return None
-            
-            x_offset = next(f.offset for f in cloud_msg.fields if f.name == 'x')
-            y_offset = next(f.offset for f in cloud_msg.fields if f.name == 'y')
-            z_offset = next(f.offset for f in cloud_msg.fields if f.name == 'z')
-            
-            point_step = cloud_msg.point_step
-            data = np.frombuffer(cloud_msg.data, dtype=np.uint8)
-            
-            # Calculate number of points
-            num_points = len(cloud_msg.data) // point_step
-            
-            if num_points == 0:
-                return None
-            
-            # Extract x, y, z for each point
-            points = []
-            for i in range(0, num_points, 10):  # Sample every 10th point for speed
-                offset = i * point_step
-                x = struct.unpack('f', data[offset + x_offset:offset + x_offset + 4])[0]
-                y = struct.unpack('f', data[offset + y_offset:offset + y_offset + 4])[0]
-                z = struct.unpack('f', data[offset + z_offset:offset + z_offset + 4])[0]
-                points.append([x, y, z])
-            
-            return points
-            
-        except Exception as e:
-            self.get_logger().warn(f'PointCloud2 parse error: {e}')
-            return None
-    
-    def get_distance_from_lidar(self, angle_offset):
-        """
-        Get distance from LiDAR scan at the human's angular position.
-        Returns the MINIMUM distance in the search window (closest object = human).
-        
-        Args:
-            angle_offset: Angle from robot's forward direction (radians)
-        
-        Returns:
-            (distance, refined_angle) tuple, or (None, None) if unavailable
-        """
-        with self.lidar_lock:
-            if self.latest_lidar is None:
-                return None, None
-            lidar_msg = self.latest_lidar
-        
-        try:
-            angle_min = lidar_msg.angle_min
-            angle_max = lidar_msg.angle_max
-            angle_increment = lidar_msg.angle_increment
-            ranges = np.array(lidar_msg.ranges)
-            
-            target_angle = angle_offset
-            
-            # Clamp to LiDAR range
-            if target_angle < angle_min:
-                target_angle = angle_min
-            elif target_angle > angle_max:
-                target_angle = angle_max
-            
-            index = int((target_angle - angle_min) / angle_increment)
-            index = max(0, min(index, len(ranges) - 1))
-            
-            # Wide search window (±20 degrees)
-            angle_window = 0.35  # ~20 degrees in radians
-            index_window = int(angle_window / angle_increment)
-            
-            start_idx = max(0, index - index_window)
-            end_idx = min(len(ranges), index + index_window)
-            
-            # Get ranges in this window
-            range_window = ranges[start_idx:end_idx]
-            
-            # Find valid ranges
-            valid_mask = (
-                (range_window > lidar_msg.range_min) & 
-                (range_window < lidar_msg.range_max) &
-                (range_window < self.detection_distance) &  # Also check our max distance
-                np.isfinite(range_window)
-            )
-            
-            if not np.any(valid_mask):
-                self.get_logger().debug(f'LiDAR: No valid ranges in window around {math.degrees(target_angle):.1f}°')
-                return None, None
-            
-            # Find MINIMUM distance (closest object = the human)
-            # Add offset for human body radius (LiDAR hits edge, not center)
-            valid_indices = np.where(valid_mask)[0]
-            valid_ranges = range_window[valid_mask]
-            
-            min_idx = np.argmin(valid_ranges)
-            raw_distance = float(valid_ranges[min_idx])
-            
-            # Add ~25cm offset to account for human body radius
-            # LiDAR hits the front of the person, we want the center
-            human_body_offset = 0.25
-            distance = raw_distance + human_body_offset
-            
-            # Get the angle where minimum was found
-            actual_index = start_idx + valid_indices[min_idx]
-            refined_angle = angle_min + actual_index * angle_increment
-            
-            self.get_logger().debug(
-                f'LiDAR: raw={raw_distance:.2f}m + offset={human_body_offset}m = {distance:.2f}m at angle {math.degrees(refined_angle):.1f}°'
-            )
-            
-            return distance, refined_angle
-            
-        except Exception as e:
-            self.get_logger().warn(f'LiDAR extraction failed: {e}')
-            return None, None
-    
-    def get_fused_distance(self, bbox_center_x, bbox_center_y, angle_offset, gemini_distance_str):
-        """
-        Fuse multiple distance estimates for best accuracy.
-        Also returns refined angle - prefer depth camera angle over LiDAR.
-        
-        Returns:
-            (distance, method_used, refined_angle) tuple
-        """
-        distances = {}
-        depth_angle = None
-        lidar_angle = None
-        
-        # Get Gemini estimate first (as reference)
-        gemini_dist = self.get_distance_from_gemini(gemini_distance_str)
-        distances['gemini'] = gemini_dist
-        
-        # Try depth camera (3D point cloud) - now returns angle too
-        depth_result = self.get_distance_from_depth(bbox_center_x, bbox_center_y)
-        depth_dist = depth_result[0] if depth_result[0] is not None else None
-        depth_angle = depth_result[1] if depth_result[1] is not None else None
-        
-        if depth_dist is not None and 0.3 < depth_dist < self.detection_distance:
-            distances['depth'] = depth_dist
-        
-        # Try LiDAR (returns distance AND refined angle)
-        lidar_result = self.get_distance_from_lidar(angle_offset)
-        lidar_dist = lidar_result[0] if lidar_result[0] is not None else None
-        lidar_angle = lidar_result[1] if lidar_result[1] is not None else None
-        
-        if lidar_dist is not None and 0.3 < lidar_dist < self.detection_distance:
-            distances['lidar'] = lidar_dist
-        
-        # Choose best refined angle: prefer LIDAR over Depth (LiDAR is more accurate)
-        if lidar_angle is not None:
-            refined_angle = lidar_angle
-        elif depth_angle is not None:
-            refined_angle = depth_angle
-        else:
-            refined_angle = None
-        
-        # Fusion logic - ALWAYS TRUST LIDAR (most accurate for obstacles)
-        lidar_str = f'{distances["lidar"]:.2f}' if 'lidar' in distances else 'None'
-        depth_str = f'{distances["depth"]:.2f}' if 'depth' in distances else 'None'
-        self.get_logger().debug(
-            f'    FUSION: lidar={lidar_str}, depth={depth_str}, gemini={distances["gemini"]:.2f}'
-        )
-        
-        if 'lidar' in distances:
-            # LiDAR available - use it (most accurate)
-            final_dist = distances['lidar']
-            method = 'lidar'
-        elif 'depth' in distances:
-            # Depth available - use it
-            final_dist = distances['depth']
-            method = 'depth'
-        else:
-            # Fallback to Gemini
-            final_dist = distances['gemini']
-            method = 'gemini(fallback)'
-        
-        return final_dist, method, refined_angle
+    def pose_cb(self, msg):
+        frame_id = msg.header.frame_id
+        stamp = msg.header.stamp
+        detections = []
 
-    # ============ ANGLE CALCULATION ============
-    
-    def get_angle_from_bbox(self, bbox_center_x):
-        """
-        Calculate precise angle from bounding box center position.
-        
-        Args:
-            bbox_center_x: Normalized x position (0-1) in image
-                          0 = left edge, 0.5 = center, 1 = right edge
-        
-        Returns:
-            angle_offset in radians (positive = left, negative = right)
-        """
-        # Convert normalized position to angle
-        # bbox_center_x = 0.5 means center (angle = 0)
-        # bbox_center_x = 0 means left edge (angle = +fov/2)
-        # bbox_center_x = 1 means right edge (angle = -fov/2)
-        
-        angle_offset = (0.5 - bbox_center_x) * self.camera_fov_h
-        return angle_offset
-    
-    def get_angle_from_position(self, position_str):
-        """
-        Original method: Convert categorical position to angle.
-        Less precise than bounding box method.
-        """
-        if position_str == 'left':
-            return 0.5  # ~30 degrees
-        elif position_str == 'right':
-            return -0.5
-        else:
-            return 0.0
 
-    # ============ GEMINI ANALYSIS ============
-    
-    def analyze_scene(self):
-        """Main analysis loop - runs at analysis_rate Hz."""
-        if self.analyzing:
+        if not self.tf_buffer.can_transform(self.target_frame, frame_id, rclpy.time.Time()):
+            self.get_logger().warn(f"TF FAIL: Cannot transform from '{frame_id}' to '{self.target_frame}'")
+            #self.get_logger().warn(f"HINT: Run 'ros2 run tf2_ros static_transform_publisher 0 0 0 0 0 0 map {frame_id}'")
             return
         
-        with self.image_lock:
-            if self.latest_image is None:
-                return
-            image_msg = self.latest_image
-        
-        pose = self.get_robot_pose()
-        if pose is None:
+
+        if not self.tf_buffer.can_transform(self.target_frame, frame_id, rclpy.time.Time()):
             return
+
+        for pose in msg.poses:
+            map_pt = self.transform_point(pose.position.x, pose.position.y, pose.position.z, frame_id, stamp)
+            
+            # Debug log 
+            if map_pt is None:
+                self.get_logger().warn("Transform failed silently!")
+            else:
+                pass # self.get_logger().info(f"Transform OK: {map_pt}")
+            
+            if map_pt:
+                detections.append({'x': map_pt[0], 'y': map_pt[1], 'z': map_pt[2]})
+
+        self.update_ekf(detections)
+
+    def rgb_cb(self, msg):
+        self.latest_rgb = msg
+
+    def update_ekf(self, detections):
+        for t in self.trackers: 
+            t.predict()
+
+        used_trackers = set()
+        for det in detections:
+            best_t = None
+            min_dist = 5.0 
+            
+            for t in self.trackers:
+                if t in used_trackers: continue
+                dist = math.sqrt((t.state[0, 0]-det['x'])**2 + (t.state[1, 0]-det['y'])**2)
+                if dist < min_dist:
+                    min_dist = dist
+                    best_t = t
+            
+            if best_t:
+                best_t.update(det['x'], det['y'], det['z'])
+                used_trackers.add(best_t)
+                
+                # PRINT REPORT EVERY 100 FRAMES
+                if best_t.frame_count == 100:
+                    self.print_stability_report(best_t)
+                    best_t.history_raw = []
+                    best_t.history_ekf = []
+                    best_t.frame_count = 0
+            else:
+                self.trackers.append(HumanTracker(det['x'], det['y'], det['z']))
+
+        #for t in self.trackers:
+         #   if t not in used_trackers: t.predict()
         
-        self.analyzing = True
-        threading.Thread(
-            target=self._analyze_with_gemini,
-            args=(image_msg, pose),
-            daemon=True
-        ).start()
-    
-    def _analyze_with_gemini(self, image_msg, robot_pose):
-        """Background thread for Gemini analysis with enhanced distance estimation."""
+        # TTL: Keep memory for 3.0s
+        now = time.time()
+        self.trackers = [t for t in self.trackers if (now - t.last_update) < 3.0]
+
+    def print_stability_report(self, tracker):
+        if len(tracker.history_raw) < 2: return
+        raw_arr = np.array(tracker.history_raw)
+        ekf_arr = np.array(tracker.history_ekf)
+        
+        std_raw = np.std(raw_arr, axis=0)
+        std_ekf = np.std(ekf_arr, axis=0)
+        
+        print("\n" + "="*50)
+        print(f"   STABILITY REPORT (Human ID: {tracker.id})")
+        print("="*50)
+        print(f"RAW SENSOR NOISE:")
+        print(f"  X: ±{std_raw[0]:.4f} m")
+        print(f"  Y: ±{std_raw[1]:.4f} m")
+        print(f"  Z: ±{std_raw[2]:.4f} m  Depth ")
+        print("-" * 50)
+        print(f"FILTERED OUTPUT By KF:")
+        print(f"  X: ±{std_ekf[0]:.4f} m")
+        print(f"  Y: ±{std_ekf[1]:.4f} m")
+        print(f"  Z: ±{std_ekf[2]:.4f} m Depth ")
+        print("-" * 50)
+        #print("This proves (Depth) is noisy and (EKF) fixes it.")
+        print("="*50 + "\n")
+
+    def trigger_gemini(self):
+        if self.gemini_busy or not self.latest_rgb or not self.trackers: return
+        self.gemini_busy = True
+        img_copy = self.latest_rgb
+        self.thread_executor.submit(self.process_gemini, img_copy)
+
+    def process_gemini(self, msg):
         try:
-            cv_image = self.bridge.imgmsg_to_cv2(image_msg, 'bgr8')
-            rgb_image = cv2.cvtColor(cv_image, cv2.COLOR_BGR2RGB)
-            pil_image = PILImage.fromarray(rgb_image)
-            
-            # Gemini prompt - Simple and natural, anyone can understand
-            prompt = """Look at this image from a robot's camera.
+            cv_img = self.bridge.imgmsg_to_cv2(msg, 'bgr8')
+            pil_img = PILImage.fromarray(cv2.cvtColor(cv_img, cv2.COLOR_BGR2RGB))
+            pil_img = pil_img.resize((320, 240)) 
+            prompt = 'Determine engagement. JSON: {"humans": [{"engagement": "high"}]}'
+            resp = self.model.generate_content([prompt, pil_img])
+            text = resp.text.strip().replace("```json", "").replace("```", "")
+            if "'" in text: text = text.replace("'", '"')
+            data = json.loads(text[text.find('{'):text.rfind('}')+1])
+            humans = data.get('humans', [])
 
-Tell me about any people you see:
-- Where is each person in the image?
-- What are they doing?
-- Are they busy or can I pass by them?
+            for h in humans:
+                eng = h.get('engagement', 'low').lower()
+                if eng == 'high' and self.trackers:
+                    self.trackers[0].engagement = 'high'
+                    self.get_logger().info("Gemini: High Engagement.")
+        except: pass 
+        finally: self.gemini_busy = False
 
-Respond in JSON format:
-{
-  "scene": "what you see",
-  "people": [
-    {
-      "location": "describe where they are in the image",
-      "doing": "what they are doing",
-      "busy": true or false
-    }
-  ]
-}
+    def analyse_loop(self):
+        # Generate visualization markers and point cloud for obstacles
+        marker_array = MarkerArray()
+        cloud_points = []
+        
+        delete_m = Marker()
+        delete_m.action = Marker.DELETEALL
+        marker_array.markers.append(delete_m)
 
-If no people: {"scene": "description", "people": []}
-"""
+        pairs = []
+        for i in range(len(self.trackers)):
+            t = self.trackers[i]
+            m = Marker()
+            m.header.frame_id = self.target_frame
+            m.header.stamp = self.get_clock().now().to_msg()
+            m.ns = "humans"
+            m.id = t.id 
+            m.type = Marker.CYLINDER
+            m.action = Marker.ADD
+            m.pose.position.x = float(t.state[0, 0]); m.pose.position.y = float(t.state[1, 0]); m.pose.position.z = 0.9
+            m.scale.x = 0.5; m.scale.y = 0.5; m.scale.z = 1.8
+            if t.engagement == 'high' or 'Medium' in t.engagement: 
+                m.color.r = 0.0; m.color.g = 1.0; m.color.b = 0.0 
+            else: 
+                m.color.r = 1.0; m.color.g = 0.0; m.color.b = 0.0 
+            m.color.a = 0.8
+            marker_array.markers.append(m)
+            self.add_cylinder_points(cloud_points, float(t.state[0, 0]), float(t.state[1, 0]), 0.25)
             
-            response = self.model.generate_content([prompt, pil_image])
-            text = response.text.strip()
-            
-            if '```json' in text:
-                text = text.split('```json')[1].split('```')[0].strip()
-            elif '```' in text:
-                text = text.split('```')[1].split('```')[0].strip()
-            
-            result = json.loads(text)
-            
-            # Process the simple response and convert to our internal format
-            people = result.get('people', [])
-            
-            if people:
-                self.get_logger().info(f'  Detected {len(people)} person(s)')
-                scene = result.get('scene', '')
-                if scene:
-                    self.get_logger().info(f' Scene: {scene}')
-                
-                # Convert simple format to internal format
-                humans = self._convert_simple_to_internal(people)
-                self._create_obstacles_from_detections(humans, robot_pose)
-            else:
-                self.get_logger().debug('No people detected')
-                
-        except json.JSONDecodeError as e:
-            self.get_logger().warn(f'JSON parse error: {e}')
+            # find pairs or more for walls
+            for j in range(i + 1, len(self.trackers)):
+                t2 = self.trackers[j]
+                dx = float(t.state[0, 0]) - float(t2.state[0, 0])
+                dy = float(t.state[1, 0]) - float(t2.state[1, 0])
+                dist = math.sqrt(dx*dx + dy*dy)
+                if dist < 2.0:
+                    pairs.append((t, t2, dist, dx, dy))
+
+        for (t1, t2, dist, dx, dy) in pairs:
+            wall_m = Marker()
+            wall_m.header.frame_id = self.target_frame
+            wall_m.header.stamp = self.get_clock().now().to_msg()
+            wall_m.ns = "walls"
+            wall_m.id = (t1.id + t2.id) & 0xFFFFFF
+            wall_m.type = Marker.CUBE
+            wall_m.action = Marker.ADD
+
+            # Position at midpoint
+            wall_m.pose.position.x = (float(t1.state[0, 0]) + float(t2.state[0, 0])) / 2.0
+            wall_m.pose.position.y = (float(t1.state[1, 0]) + float(t2.state[1, 0])) / 2.0
+            wall_m.pose.position.z = 0.9
+
+            # Calculate orientation, angle between the two trackers
+            angle = math.atan2(dy, dx)
+
+            # Covert angle to quaternion
+            wall_m.pose.orientation.z = math.sin(angle / 2.0)
+            wall_m.pose.orientation.w = math.cos(angle / 2.0)
+
+            wall_m.scale.x = dist # length of the wall
+            wall_m.scale.y = 0.2 # thickness of the wall
+            wall_m.scale.z = 1.8 # height of the wall
+            wall_m.color.r = 0.0; wall_m.color.g = 0.0; wall_m.color.b = 1.0; wall_m.color.a = 0.5 
+            marker_array.markers.append(wall_m)
+            steps = int(dist / 0.1)
+            for s in range(steps):
+                # r 
+                r = s / float(steps)
+                px = (1-r)*float(t1.state[0, 0]) + r*float(t2.state[0, 0])
+                py = (1-r)*float(t1.state[1, 0]) + r*float(t2.state[1, 0])
+                self.add_cylinder_points(cloud_points, px, py, 0.1)
+
+        self.marker_pub.publish(marker_array)
+        if cloud_points: self.publish_cloud(b''.join(cloud_points), len(cloud_points))
+        else: self.publish_cloud(b'', 0)
+
+    def transform_point(self, x, y, z, from_frame, time_stamp):
+        if self.target_frame == from_frame: return (x,y,z)
+        pt = PointStamped()
+        pt.header.frame_id = from_frame
+        pt.header.stamp = self.get_clock().now().to_msg()
+        pt.point.x, pt.point.y, pt.point.z = float(x), float(y), float(z)
+        try:
+            out = self.tf_buffer.transform(pt, self.target_frame, timeout=rclpy.duration.Duration(seconds=0.2))
+            return (out.point.x, out.point.y, out.point.z)
         except Exception as e:
-            self.get_logger().error(f'Analysis error: {e}')
-        finally:
-            self.analyzing = False
-    
-    def _convert_simple_to_internal(self, people):
-        """
-        Convert simple Gemini response to internal format.
-        
-        This function handles all the technical conversion so the prompt
-        can stay simple and natural.
-        
-        Simple format (from Gemini):
-        {
-            "location": "on the left side talking to someone",
-            "doing": "having a conversation",
-            "busy": true
-        }
-        
-        Internal format (for processing):
-        {
-            "position": "left",
-            "distance": "medium",
-            "engagement": "high",
-            "activity": "having a conversation",
-            "bbox": None  # Will use position-based angle
-        }
-        """
-        humans = []
-        
-        for person in people:
-            location = person.get('location', '').lower()
-            doing = person.get('doing', 'unknown')
-            busy = person.get('busy', False)
-            
-            # Convert location to position (left/center/right)
-            if 'left' in location:
-                position = 'left'
-            elif 'right' in location:
-                position = 'right'
-            else:
-                position = 'center'
-            
-            # Estimate distance from location description
-            if any(word in location for word in ['close', 'near', 'front', 'nearby']):
-                distance = 'near'
-            elif any(word in location for word in ['far', 'back', 'distant', 'away']):
-                distance = 'far'
-            else:
-                distance = 'medium'
-            
-            # Convert busy to engagement level
-            # Also check activity for context
-            doing_lower = doing.lower()
-            if busy:
-                # Check if it's a conversation or focused activity
-                if any(word in doing_lower for word in ['talk', 'conversation', 'chat', 'discuss', 'speak']):
-                    engagement = 'high'
-                elif any(word in doing_lower for word in ['phone', 'read', 'work', 'focus', 'concentrat']):
-                    engagement = 'high'
-                else:
-                    engagement = 'medium'
-            else:
-                # Not busy
-                if any(word in doing_lower for word in ['walk', 'pass', 'moving', 'leaving']):
-                    engagement = 'low'
-                else:
-                    engagement = 'medium'
-            
-            human = {
-                'position': position,
-                'distance': distance,
-                'engagement': engagement,
-                'activity': doing,
-                'bbox': None  # No bbox from simple prompt, will use position
-            }
-            humans.append(human)
-            
-            self.get_logger().debug(
-                f'Converted: "{location}" → pos={position}, dist={distance}, eng={engagement}'
-            )
-        
-        return humans
+            self.get_logger().warn(f"Real TF Error: {e}")
+            return None
 
-    def _create_obstacles_from_detections(self, humans, robot_pose):
-        """Convert Gemini detections to obstacles with precise distance estimation."""
-        rx, ry, ryaw = robot_pose
-        now = time.time()
-        
-        self.get_logger().info(f'    ROBOT: pos=({rx:.2f}, {ry:.2f}), heading={math.degrees(ryaw):.1f}°')
-        
-        new_obstacles = []
-        
-        for i, human in enumerate(humans):
-            # Get engagement level → radius
-            engagement = human.get('engagement', 'medium')
-            
-            # Obstacle radii based on engagement level
-            if engagement == 'high':
-                radius = 1.0  # High priority - conversation, don't disturb
-            elif engagement == 'medium':
-                radius = 0.8  # Medium priority - standing
-            else:
-                radius = 0.5  # Low priority - walking past
-            
-            # Get bounding box or fall back to position
-            bbox = human.get('bbox', None)
-            position_str = human.get('position', 'center')
-            distance_str = human.get('distance', 'medium')
-            activity = human.get('activity', 'unknown')
-            
-            # Calculate angle (prefer bbox if available)
-            if bbox and len(bbox) == 4:
-                bbox_center_x = (bbox[0] + bbox[2]) / 2
-                bbox_center_y = (bbox[1] + bbox[3]) / 2
-                angle_offset = self.get_angle_from_bbox(bbox_center_x)
-                angle_method = 'bbox'
-                self.get_logger().info(
-                    f'    DEBUG: bbox={bbox}, center_x={bbox_center_x:.3f}, angle={math.degrees(angle_offset):.1f}°'
-                )
-            else:
-                bbox_center_x = 0.5  # Default center
-                bbox_center_y = 0.5
-                angle_offset = self.get_angle_from_position(position_str)
-                angle_method = 'categorical'
-            
-            # Get distance based on selected method
-            if self.distance_method == 'gemini':
-                distance = self.get_distance_from_gemini(distance_str)
-                dist_method = 'gemini'
-                final_angle = angle_offset
-            elif self.distance_method == 'depth':
-                distance = self.get_distance_from_depth(bbox_center_x, bbox_center_y)
-                if distance is None:
-                    distance = self.get_distance_from_gemini(distance_str)
-                    dist_method = 'gemini(fallback)'
-                else:
-                    dist_method = 'depth'
-                final_angle = angle_offset
-            elif self.distance_method == 'lidar':
-                lidar_dist, lidar_angle = self.get_distance_from_lidar(angle_offset)
-                if lidar_dist is None:
-                    distance = self.get_distance_from_gemini(distance_str)
-                    dist_method = 'gemini(fallback)'
-                    final_angle = angle_offset
-                else:
-                    distance = lidar_dist
-                    dist_method = 'lidar'
-                    final_angle = lidar_angle if lidar_angle is not None else angle_offset
-            else:  # fusion
-                distance, dist_method, refined_angle = self.get_fused_distance(
-                    bbox_center_x, bbox_center_y, angle_offset, distance_str
-                )
-                # Use refined LiDAR angle if available, otherwise use bbox angle
-                final_angle = refined_angle if refined_angle is not None else angle_offset
-            
-            # Calculate obstacle position in map frame using final_angle
-            obstacle_angle = ryaw + final_angle
-            ox = rx + distance * math.cos(obstacle_angle)
-            oy = ry + distance * math.sin(obstacle_angle)
-            
-            obstacle = {
-                'x': ox,
-                'y': oy,
-                'radius': radius,
-                'engagement': engagement,
-                'activity': activity,
-                'expires_at': now + self.obstacle_ttl
-            }
-            new_obstacles.append(obstacle)
-            
-            # Enhanced logging
-            self.get_logger().info(
-                f'  Human {i+1}: {engagement} engagement ({activity}) | '
-                f'distance={distance:.2f}m ({dist_method}) | '
-                f'bbox_angle={math.degrees(angle_offset):.1f}° final_angle={math.degrees(final_angle):.1f}° | '
-                f'map_pos=({ox:.2f}, {oy:.2f})'
-            )
-            self.get_logger().info(
-                f'    CALC: robot({rx:.2f},{ry:.2f}) + dist({distance:.2f}) @ angle({math.degrees(ryaw):.1f}° + {math.degrees(final_angle):.1f}° = {math.degrees(obstacle_angle):.1f}°)'
-            )
-        
-        # Update obstacle list
-        with self.obstacles_lock:
-            self.current_obstacles = [
-                obs for obs in self.current_obstacles
-                if obs['expires_at'] > now
-            ]
-            
-            for new_obs in new_obstacles:
-                is_duplicate = False
-                for existing in self.current_obstacles:
-                    dist = math.sqrt(
-                        (new_obs['x'] - existing['x'])**2 +
-                        (new_obs['y'] - existing['y'])**2
-                    )
-                    if dist < 1.0:
-                        existing['expires_at'] = new_obs['expires_at']
-                        existing['radius'] = max(existing['radius'], new_obs['radius'])
-                        is_duplicate = True
-                        break
-                
-                if not is_duplicate:
-                    self.current_obstacles.append(new_obs)
+    def add_cylinder_points(self, cloud_points, cx, cy, radius):
+        for h_idx in range(5):
+            z = 0.2 + (h_idx * 0.3)
+            for i in range(8):
+                angle = (2 * math.pi * i) / 8
+                cloud_points.append(struct.pack('fff', cx + radius * math.cos(angle), cy + radius * math.sin(angle), z))
 
-    # ============ OBSTACLE PUBLISHING ============
-    
-    def publish_obstacles(self):
-        """Publish obstacles at high frequency (10 Hz)."""
-        now = time.time()
-        
-        with self.obstacles_lock:
-            self.current_obstacles = [
-                obs for obs in self.current_obstacles
-                if obs['expires_at'] > now
-            ]
-            
-            all_points = []
-            for obstacle in self.current_obstacles:
-                points = self._generate_cylinder_points(
-                    obstacle['x'],
-                    obstacle['y'],
-                    obstacle['radius']
-                )
-                all_points.extend(points)
-        
-        cloud = self._create_pointcloud2(all_points)
-        self.obstacle_pub.publish(cloud)
-    
-    def _generate_cylinder_points(self, x_center, y_center, radius):
-        """Generate dense cylinder points."""
-        points = []
-        height = 1.8
-        num_angles = 36
-        num_radii = max(5, int(radius / 0.05))
-        num_heights = 10
-        
-        for angle_idx in range(num_angles):
-            angle = 2 * math.pi * angle_idx / num_angles
-            for r_idx in range(num_radii + 1):
-                r = radius * r_idx / num_radii
-                x = x_center + r * math.cos(angle)
-                y = y_center + r * math.sin(angle)
-                for h_idx in range(num_heights + 1):
-                    z = height * h_idx / num_heights
-                    points.append([x, y, z])
-        
-        return points
-    
-    def _create_pointcloud2(self, points):
-        """Create PointCloud2 message."""
+    def publish_cloud(self, data_bytes, num_points):
         cloud = PointCloud2()
-        cloud.header.frame_id = "map"
+        cloud.header.frame_id = self.target_frame
         cloud.header.stamp = self.get_clock().now().to_msg()
-        
+        cloud.height = 1
+        cloud.width = num_points
         cloud.fields = [
             PointField(name='x', offset=0, datatype=PointField.FLOAT32, count=1),
             PointField(name='y', offset=4, datatype=PointField.FLOAT32, count=1),
             PointField(name='z', offset=8, datatype=PointField.FLOAT32, count=1),
         ]
-        
         cloud.is_bigendian = False
         cloud.point_step = 12
-        cloud.height = 1
-        cloud.width = len(points) if points else 0
-        cloud.row_step = cloud.point_step * cloud.width
-        cloud.is_dense = True
-        
-        if points:
-            cloud.data = b''.join(
-                struct.pack('fff', float(p[0]), float(p[1]), float(p[2]))
-                for p in points
-            )
-        else:
-            cloud.data = b''
-        
-        return cloud
+        cloud.row_step = 12 * num_points
+        cloud.data = data_bytes
+        self.obstacle_pub.publish(cloud)
 
-
-def main(args=None):
-    rclpy.init(args=args)
-    node = SocialNavigatorSimple()
-    
-    try:
-        rclpy.spin(node)
-    except KeyboardInterrupt:
-        node.get_logger().info('Shutting down...')
-    finally:
-        node.destroy_node()
-        rclpy.shutdown()
-
+def main():
+    rclpy.init()
+    rclpy.spin(SocialNavigator())
+    rclpy.shutdown()
 
 if __name__ == '__main__':
     main()

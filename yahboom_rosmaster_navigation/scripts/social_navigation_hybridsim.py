@@ -324,9 +324,9 @@ class SocialNavigatorHybrid(Node):
                 for t in self.trackers:
                     if t in used_trackers: continue
                     H = np.array([[1, 0, 0, 0], [0, 1, 0, 0]])
-                    z_meas = np.array([[det['x']], [det['y']]])
+                    z_measured = np.array([[det['x']], [det['y']]])
                     z_pred = H @ t.state
-                    y_res = z_meas - z_pred
+                    y_res = z_measured - z_pred
                     S = H @ t.P @ H.T + t.R
                     try:
                         # Mahalanobis distance to determine if this detection matches the tracker's prediction
