@@ -21,7 +21,7 @@ This repository extends the base [Automatic Addison](https://automaticaddison.co
 | Component | Changes |
 |-----------|---------|
 | **Nav2 Configuration** | Tuned for human-aware navigation with virtual obstacle support |
-| **Gazebo World Files** | Updated with human models for social interaction scenarios |
+| **Perception Pipeline** | MediaPipe Tasks API for robust, multi-person 3D shoulder landmark extraction |
 | **Foundation Model Integration** | Added Gemini AI modules for human detection and engagement analysis |
 | **KF Hybrid Tracker** | Kalman Filter with Mahalanobis data association for robust tracking |
 
