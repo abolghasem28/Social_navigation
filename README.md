@@ -149,7 +149,7 @@ python3 mediapipe_detector.py
 **Terminal 3: Launch Social Navigation**
 ```bash
 
-conda deactivate gemini_env
+conda deactivate YOUR_env
 
 # Ensure your API Key is set
 export GEMINI_API_KEY="AIzaSy...YOUR_KEY"
