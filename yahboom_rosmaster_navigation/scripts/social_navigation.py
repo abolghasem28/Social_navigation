@@ -40,7 +40,7 @@ import time
 import uuid 
 import os
 
-# --- STEP 3: EKF STABILIZER ---
+# EKF STABILIZER
 class HumanTracker:
     def __init__(self, x, y, z, engagement="low"):
         self.id = uuid.uuid4().int & (1<<32)-1
@@ -57,13 +57,13 @@ class HumanTracker:
         # For slow move humans, we can set this low to trust our predictions more, like below.
         #self.Q = np.diag([0.01, 0.01, 0.05, 0.05]) 
 
-        # High Measurement Noise: Don't trust the camera completely.
+        # High Measurement Noise: Don't trust the camera 
         #self.R = np.eye(2) * 0.5  
 
-        # For fast moving humans, we can set this higher to be more responsive, like below.
+        # For fast moving humans, we can set a higher velocity to be more responsive, like below.
         self.Q = np.diag([0.05, 0.05, 0.2, 0.2])
          
-        # Low Measurement Noise: Trust more the camera, Faster movement
+        # Low Measurement Noise: Trust more the camera between 0.1-0.5, Faster movement
         self.R = np.eye(2) * 0.3
 
         self.z = z

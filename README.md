@@ -4,15 +4,17 @@
 ![ROS_2](https://img.shields.io/ros/v/jazzy/rclcpp)
 ![Gemini](https://img.shields.io/badge/Gemini-AI%20Powered-blue)
 ![Nav2](https://img.shields.io/badge/Nav2-Social%20Navigation-green)
-![Algorithm](https://img.shields.io/badge/Algorithm-EKF%20Hybrid%20Tracker-purple)
+![Algorithm](https://img.shields.io/badge/Algorithm-KF%20Hybrid%20Tracker-purple)
 
-![Social Navigation Demo](Image.png)
+![Social Navigation Demo in Simulation without using MediaPipe](Imagesim.png)
+![Social Navigation Demo with LIO robot by MediaPipe + KF + Gemini creating Social wall](Image0.png)
+![Social Navigation Demo with LIO robot by MediaPipe + KF + Gemini finding human position](Image1.png)
 
 ---
 
 ## Overview
 
-This repository extends the base [Automatic Addison](https://automaticaddison.com) setup for the **ROSMASTER X3** robot by Yahboom. It has been significantly modified to support **social navigation research**, implementing an **EKF-based Hybrid Tracker** that combines Generative AI with probabilistic state estimation to solve human tracking issues.
+This repository extends the base [Automatic Addison](https://automaticaddison.com) setup for the **ROSMASTER X3** robot by Yahboom. It has been significantly modified to support **social navigation research**, implementing a **KF-based Hybrid Tracker** that combines Generative AI with probabilistic state estimation to solve human tracking issues.
 
 ### Key Modifications
 
@@ -21,22 +23,23 @@ This repository extends the base [Automatic Addison](https://automaticaddison.co
 | **Nav2 Configuration** | Tuned for human-aware navigation with virtual obstacle support |
 | **Gazebo World Files** | Updated with human models for social interaction scenarios |
 | **Foundation Model Integration** | Added Gemini AI modules for human detection and engagement analysis |
-| **EKF Hybrid Tracker** | Extended Kalman Filter with Mahalanobis data association for robust tracking |
+| **KF Hybrid Tracker** | Kalman Filter with Mahalanobis data association for robust tracking |
 
 ### Core Scripts
 
-To support both research environments, the logic is split into two specialized scripts:
+To support both research environments, the logic is split into specialized scripts:
 
-1. **`social_navigation_hybridsim.py`**: Optimized for **Gazebo Simulation**. It handles TF transforms relative to the simulation `map` frame and synchronizes with simulated camera clocks.
+1. **`social_navigation_hybridsim.py`**: Optimized for **Gazebo Simulation**. Uses Kalman Filter for tracking. It handles TF transforms relative to the simulation `map` frame and synchronizes with simulated camera clocks. **Note:** Still exhibits jittering and ghosting — KF reduces noise but is not perfect.
 
-2. **`social_navigation_hybridreal.py`**: Optimized for **Real-World Hardware**. It includes specific handling for the **Intel RealSense D435** drivers, manages real-world sensor noise (mm → m conversion), and handles the `camera_color_optical_frame` transforms directly.
+2. **`social_navigation_hybridreal.py`**: Optimized for **Real-World Hardware**. Uses Kalman Filter for tracking. It includes specific handling for the **Intel RealSense D435** drivers, manages real-world sensor noise (mm → m conversion), and handles the `camera_color_optical_frame` transforms directly. **Note:** Still exhibits jittering and ghosting — can be dangerous in real-world scenarios.
+
+3. **`mediapipe_detector.py` + `social_navigation.py`**: **NEW — Most Robust Solution**. Uses **MediaPipe** machine learning for human pose estimation. Detects left and right shoulder landmarks to provide accurate keypoints. This approach **eliminates jitter and ghost obstacles** that persist with the KF-only methods. Requires Conda environment.
 
 ---
 
 ## Quick Start
 
 ### Prerequisites
-
 ```bash
 # Install dependencies
 sudo apt update
@@ -49,12 +52,11 @@ pip install google-generativeai opencv-python pillow numpy --break-system-packag
 ### Setup Aliases (Recommended)
 
 Add these aliases to your `~/.bashrc` for quick access:
-
 ```bash
 # Navigation aliases for simulation Gazebo
 alias nav1='bash /home/<user>/ros2_ws/src/yahboom_rosmaster/yahboom_rosmaster_bringup/scripts/rosmaster_x3_navigation.sh'
 
-# Social navigation with Gemini AI (EKF Hybrid Tracker)
+# Social navigation with Gemini AI (KF Hybrid Tracker)
 alias social_nav='bash /home/<user>/ros2_ws/src/yahboom_rosmaster/yahboom_rosmaster_bringup/scripts/launch_gemini_detector.sh'
 
 # Source ROS2 workspace
@@ -62,7 +64,6 @@ alias srcros='source /home/<user>/ros2_ws/install/setup.bash'
 ```
 
 Then reload:
-
 ```bash
 source ~/.bashrc
 ```
@@ -71,7 +72,7 @@ source ~/.bashrc
 
 ## Running the System
 
-You can run the system in two modes: **Simulation** or **Real-World**.
+You can run the system in three modes: **Simulation**, **Real-World (KF)**, or **Real-World (MediaPipe)**.
 
 ### Mode 1: Simulation (Gazebo)
 
@@ -88,11 +89,13 @@ nav_sim
 # Ensure your API Key is set
 export GEMINI_API_KEY="AIzaSy...YOUR_KEY"
 
-# Run the Simulation Script
+# Run the Simulation Script (uses Kalman Filter)
 ros2 run yahboom_rosmaster_navigation social_navigation_hybridsim.py
 ```
 
-### Mode 2: Real-World (Hardware)
+> ⚠️ **Note:** The simulation script uses Kalman Filter. You may still observe jittering and ghosting — KF and Mahalanobis distance reduce noise but are not perfect.
+
+### Mode 2: Real-World (KF-based)
 
 Use this mode when connected to the physical robot with the Intel RealSense D435 camera.
 
@@ -108,9 +111,11 @@ ros2 launch realsense2_camera rs_launch.py align_depth.enable:=true pointcloud.e
 # Ensure your API Key is set
 export GEMINI_API_KEY="AIzaSy...YOUR_KEY"
 
-# Run the Real-World Script
+# Run the Real-World Script (uses Kalman Filter)
 ros2 run yahboom_rosmaster_navigation social_navigation_hybridreal.py
 ```
+
+> ⚠️ **Warning:** This method still exhibits jittering and ghosting, which can be **dangerous** in real-world scenarios. Consider using MediaPipe mode below for robust tracking.
 
 **Terminal 3: Visualization (Optional)**
 ```bash
@@ -119,6 +124,41 @@ ros2 run rviz2 rviz2
 # Add MarkerArray topic: /human_markers
 # Add PointCloud2 topic: /social_obstacles
 ```
+
+### Mode 3: Real-World (MediaPipe — Recommended)
+
+This is the **most robust solution** that eliminates jitter and ghost obstacles. It uses MediaPipe's machine learning algorithm to detect left and right shoulder landmarks, providing accurate keypoints for human localization.
+
+**Terminal 1: Launch Camera Drivers**
+```bash
+ros2 launch realsense2_camera rs_launch.py pointcloud.enable:=true align_depth.enable:=true
+```
+
+**Terminal 2: Fix Library and Launch MediaPipe Detector**
+```bash
+# Fix potential libstdc++ conflict
+ln -sf /usr/lib/x86_64-linux-gnu/libstdc++.so.6 ~/anaconda3/envs/gemini_env/lib/libstdc++.so.6
+
+# Activate Conda environment
+conda activate gemini_env
+
+# Run MediaPipe detector
+python3 mediapipe_detector.py
+```
+
+**Terminal 3: Launch Social Navigation**
+```bash
+# In the same Conda environment (gemini_env)
+conda activate gemini_env
+
+# Ensure your API Key is set
+export GEMINI_API_KEY="AIzaSy...YOUR_KEY"
+
+# Run social navigation
+python3 social_navigation.py
+```
+
+> 💡 **Tip:** You can also set the API key in the `social_navigation.py` file directly or in `launch_gemini_detector.sh` under `yahboom_rosmaster_bringup`.
 
 ---
 
@@ -130,7 +170,15 @@ The system uses Google's Gemini foundation model to:
 
 1. **Detect humans** in camera images via bounding boxes
 2. **Assess engagement level** (conversation, standing, walking)
-3. **Provide measurements** to the EKF tracker for probabilistic state estimation
+3. **Provide measurements** to the KF tracker for probabilistic state estimation
+
+### MediaPipe Enhancement
+
+The MediaPipe-based approach provides:
+
+1. **Shoulder landmark detection** — Uses left and right shoulder keypoints for precise human localization
+2. **Machine learning-based pose estimation** — More robust than bounding box center estimation
+3. **Jitter-free tracking** — Eliminates the ghosting and noise issues present in KF-only methods
 
 ### Engagement-Based Navigation
 
@@ -143,7 +191,6 @@ The system uses Google's Gemini foundation model to:
 ### Sample Output
 
 When running the social navigation node, you'll see real-time detection logs:
-
 ```
 [INFO] [social_navigator_hybrid]: Human 1: Eng=medium Method=DEPTH Sensor Depth=0.81m
 [INFO] [social_navigator_hybrid]: Human 2: Eng=high Method=VISUAL FALLBACK Depth=3.01m
@@ -161,30 +208,39 @@ When running the social navigation node, you'll see real-time detection logs:
 
 ---
 
-## Algorithm: EKF Hybrid Tracker
+## Algorithm: KF Hybrid Tracker
 
-The tracking system evolved through three iterations, each solving specific problems:
+The tracking system evolved through four iterations, each solving specific problems:
 
 | Version | Method | Problem Solved | Remaining Issue |
 |---------|--------|----------------|-----------------|
 | V1 | Velocity Clamping + Low-Pass Filter | Reduced teleportation jumps | Jitter and ghosting persisted |
 | V2 | V1 + Hit Threshold | Eliminated ghost obstacles | 2s delay before new detections appear |
-| **V3 (Current)** | **Extended Kalman Filter** | **Probabilistic smoothing + motion prediction** | **None — best stability and accuracy** |
+| V3 | Kalman Filter + Mahalanobis | Probabilistic smoothing + motion prediction | Jitter and ghosting reduced but still present — can be dangerous |
+| **V4 (Current)** | **MediaPipe + KF + Gemini** | **ML-based shoulder keypoints** | **None — most robust solution** |
 
-### Why EKF?
+### Why KF?
 
 The fundamental problem is that Gemini's per-frame analysis produces **non-deterministic measurements**: the same person in the same position yields slightly different bounding boxes each frame due to pixel-level variations in color and illumination. Combined with noisy depth sensor data, this causes obstacle positions to jitter and ghost.
 
-The EKF addresses both issues:
+The KF addresses both issues:
 1. **Process noise** models Gemini's frame-to-frame variation
 2. **Measurement noise** models the depth sensor uncertainty
 3. **State prediction** enables smooth obstacle movement between detection frames
 
 A Particle Filter was considered but rejected due to computational cost — Gemini already introduces latency (~1s per frame), and particle filtering on a laptop CPU would compound this significantly.
 
+### Why MediaPipe is Better
+
+While KF reduces noise, it cannot eliminate jitter caused by **fundamentally noisy bounding box detections**. MediaPipe provides:
+
+- **Anatomical keypoints** (shoulders) instead of bounding box centers
+- **Sub-pixel accuracy** from trained neural networks
+- **Temporal consistency** built into the pose estimation model
+
 ---
 
-### 1. EKF State Model
+### 1. Kalman Filter State Model
 
 Each tracked human is modeled with a **constant-velocity state vector**:
 
@@ -196,13 +252,13 @@ where $(x, y)$ is the position in the map frame and $(v_x, v_y)$ is the estimate
 
 The state transition follows a constant-velocity model:
 
-$$\mathbf{x}_{k|k-1} = \mathbf{F} \cdot \mathbf{x}_{k-1|k-1}$$
+$$\mathbf{x}_{k|k-1} = \mathbf{A} \cdot \mathbf{x}_{k-1|k-1}$$
 
-$$\mathbf{F} = \begin{bmatrix} 1 & 0 & \Delta t & 0 \\ 0 & 1 & 0 & \Delta t \\ 0 & 0 & 1 & 0 \\ 0 & 0 & 0 & 1 \end{bmatrix}$$
+$$\mathbf{A} = \begin{bmatrix} 1 & 0 & \Delta t & 0 \\ 0 & 1 & 0 & \Delta t \\ 0 & 0 & 1 & 0 \\ 0 & 0 & 0 & 1 \end{bmatrix}$$
 
 The predicted covariance:
 
-$$\mathbf{P}_{k|k-1} = \mathbf{F} \cdot \mathbf{P}_{k-1|k-1} \cdot \mathbf{F}^T + \mathbf{Q}$$
+$$\mathbf{P}_{k|k-1} = \mathbf{A} \cdot \mathbf{P}_{k-1|k-1} \cdot \mathbf{A}^T + \mathbf{Q}$$
 
 where:
 
@@ -248,7 +304,7 @@ $$\mathbf{P}_{k|k} = (\mathbf{I}_4 - \mathbf{K}_k \cdot \mathbf{H}) \cdot \mathb
 
 #### Z-Axis (Depth) Smoothing
 
-The depth coordinate is filtered separately with a low-pass filter since vertical motion is not modeled by the 2D EKF:
+The depth coordinate is filtered separately with a low-pass filter since vertical motion is not modeled by the 2D KF:
 
 $$z_t = 0.85 \cdot z_{t-1} + 0.15 \cdot z_{measured}$$
 
@@ -294,7 +350,6 @@ This means we only accept an association if it falls within the 99th percentile 
 | 99.5% | 10.60 | Looser gate — may allow false associations |
 
 #### Implementation
-
 ```python
 # Innovation residual
 y_res = z_meas - H @ t.state
@@ -344,7 +399,6 @@ $$\mathbf{P}_{final} = \alpha \cdot \left[ \mathbf{P}_{old} + \min\left(1, \frac
 ### Camera Settings
 
 Camera settings affect both detection quality and system performance. Edit in `rosmaster_x3.urdf.xacro`:
-
 ```xml
 <xacro:rgbd_camera
   xyz_offset="0.105 0 0.05"
@@ -361,7 +415,6 @@ Camera settings affect both detection quality and system performance. Edit in `r
 ### Nav2 Virtual Obstacles Configuration
 
 Ensure your `nav2_params.yaml` has virtual obstacles configured:
-
 ```yaml
 obstacle_layer:
   plugin: "nav2_costmap_2d::ObstacleLayer"
@@ -383,7 +436,6 @@ obstacle_layer:
 ## Environment Variables
 
 Add to `~/.bashrc`:
-
 ```bash
 # Gazebo model path (required for cafe world)
 export GZ_SIM_RESOURCE_PATH=/home/<user>/ros2_ws/src/yahboom_rosmaster/yahboom_rosmaster_gazebo/models:$GZ_SIM_RESOURCE_PATH
@@ -398,7 +450,7 @@ source /home/<user>/ros2_ws/install/setup.bash
 
 | Problem | Solution |
 |---------|----------|
-| **Robot sees ghosts (Double Obstacles)** | Ensure you are running the latest EKF-based script, not the legacy version |
+| **Robot sees ghosts (Double Obstacles)** | Use MediaPipe mode for robust tracking, or ensure you are running the latest KF-based script |
 | **Social obstacles not appearing** | Check Nav2 config — `social_obstacles` must be inside `obstacle_layer` |
 | **Depth always shows VISUAL FALLBACK** | RealSense returns mm, not meters — ensure depth filter uses `> 100` and `< 8000` with `/1000.0` conversion |
 | **Transform errors** | Verify TF chain: `map → base_link → camera_link → camera_color_optical_frame`. Run `ros2 run tf2_tools view_frames` |
@@ -406,6 +458,7 @@ source /home/<user>/ros2_ws/install/setup.bash
 | **System slow / frozen image** | Throttle debug image publishing — avoid `imgmsg_to_cv2` at 10Hz on the robot |
 | **Gemini API errors** | Verify `export GEMINI_API_KEY` is set in the launch script |
 | **RealSense not detected** | Check USB connection, run `rs-enumerate-devices` |
+| **MediaPipe libstdc++ error** | Run: `ln -sf /usr/lib/x86_64-linux-gnu/libstdc++.so.6 ~/anaconda3/envs/gemini_env/lib/libstdc++.so.6` |
 
 ---
 
@@ -432,5 +485,4 @@ source /home/<user>/ros2_ws/install/setup.bash
 
 **Abolghasem Esmaeily**  
 Social Navigation Research — MSc Thesis  
-KTH Royal Institute of Technology / Idiap Research Institute  
-February 2026
+KTH Royal Institute of Technology / Idiap Research Institute

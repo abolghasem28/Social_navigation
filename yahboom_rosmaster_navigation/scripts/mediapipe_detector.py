@@ -47,7 +47,7 @@ class MultiPersonMediaPipe(Node):
             self.get_logger().error(f"CRITICAL ERROR: Model file missing at {model_path}")
             return
 
-        # --- SETUP MEDIAPIPE ---
+        # SETUP MEDIAPIPE
         base_options = python.BaseOptions(model_asset_path=model_path)
         options = vision.PoseLandmarkerOptions(
             base_options=base_options,
@@ -59,18 +59,18 @@ class MultiPersonMediaPipe(Node):
         )
         self.detector = vision.PoseLandmarker.create_from_options(options)
 
-        # --- TOPICS ---
+        # TOPICS
         self.rgb_topic = '/camera/camera/color/image_raw'
         self.depth_topic = '/camera/camera/aligned_depth_to_color/image_raw' 
         self.cam_info_topic = '/camera/camera/color/camera_info'
 
-        # --- QOS PROFILE (MATCHING "RELIABLE" FROM YOUR LOGS) ---
+        # QOS PROFILE (MATCHING "RELIABLE" FROM OUR LOGS)
         qos_profile = QoSProfile(
             reliability=ReliabilityPolicy.RELIABLE,
             history=HistoryPolicy.KEEP_LAST,
             depth=10
         )
-
+        # Publish from Node 1 (Detector) /detected_humans
         self.human_pub = self.create_publisher(PoseArray, '/detected_humans', 10)
         self.bridge = CvBridge()
         self.latest_rgb = None
@@ -79,7 +79,7 @@ class MultiPersonMediaPipe(Node):
         self.data_lock = threading.Lock()
         self.frame_count = 0
 
-        # SUBSCRIBERS
+        # SUBSCRIBERS, what we need for detection
         self.create_subscription(Image, self.rgb_topic, self.rgb_cb, qos_profile)
         self.create_subscription(Image, self.depth_topic, self.depth_cb, qos_profile)
         self.create_subscription(CameraInfo, self.cam_info_topic, self.info_cb, qos_profile)
@@ -87,6 +87,7 @@ class MultiPersonMediaPipe(Node):
         self.create_timer(0.033, self.detect_loop)
         self.get_logger().info("Node Mediapipe Detector Initialized. Waiting for images...")
 
+    # Safty function make sure the program doesn't crash when it tries to save an image but the directory doesn't exist.
     def ensure_dir(self, file_path):
         directory = os.path.dirname(file_path)
         if not os.path.exists(directory):
@@ -107,7 +108,7 @@ class MultiPersonMediaPipe(Node):
             #self.get_logger().info(f"Camera Intrinsics Set: fx={fx:.1f}")
 
     def detect_loop(self):
-        # Check what we have BEFORE trying to process
+        # Check what we have before trying to process
         has_rgb = False
         has_depth = False
         
@@ -138,7 +139,7 @@ class MultiPersonMediaPipe(Node):
             mp_image = mp.Image(image_format=mp.ImageFormat.SRGB, data=rgb_cv)
             detection_result = self.detector.detect(mp_image)
             
-            # Count people
+        
             num_people = len(detection_result.pose_landmarks)
             if self.frame_count % 30 == 0:
                 self.get_logger().info(f"Processing... Found {num_people} people.")
@@ -146,23 +147,30 @@ class MultiPersonMediaPipe(Node):
             pose_msg = PoseArray()
             pose_msg.header = rgb_curr.header 
             
+            # The code is very dependent on Shoulders as landmakrs, if it is not visible we skip that person. 
             for idx, landmarks in enumerate(detection_result.pose_landmarks):
-                l_sh = landmarks[11]; r_sh = landmarks[12]
-                if l_sh.visibility < 0.5 or r_sh.visibility < 0.5: continue
+                l_shoulder = landmarks[11] # Left Shoulder is landmark 11 in MediaPipe Pose ans 12 is Right Shoulder
+                r_shoulder = landmarks[12]
+                if l_shoulder.visibility < 0.5 or r_shoulder.visibility < 0.5: 
+                    continue
 
-                u = int((l_sh.x + r_sh.x) / 2.0 * img_w)
-                v = int((l_sh.y + r_sh.y) / 2.0 * img_h)
-                u = max(0, min(u, img_w - 1)); v = max(0, min(v, img_h - 1))
+                u = int((l_shoulder.x + r_shoulder.x) / 2.0 * img_w)
+                v = int((l_shoulder.y + r_shoulder.y) / 2.0 * img_h)
+                u = max(0, min(u, img_w - 1))
+                v = max(0, min(v, img_h - 1))
 
                 # Depth lookup
-                z_raw_mm = 0; count = 0
+                z_raw_mm = 0
+                count = 0
+                # Look in a 5x5 window around (u,v) to get a more stable depth reading, since depth can be noisy. However the range can be adjusted based what we expact from the environment.
                 for dy in range(-2, 3):
                     for dx in range(-2, 3):
                         uu, vv = u+dx, v+dy
                         if 0 <= uu < img_w and 0 <= vv < img_h:
                             d = depth_cv[vv, uu]
                             if d > 0 and d < 8000:
-                                z_raw_mm += d; count += 1
+                                z_raw_mm += d
+                                count += 1
                 
                 if count > 0:
                     Z = ((z_raw_mm / count) / 1000.0) + 0.20

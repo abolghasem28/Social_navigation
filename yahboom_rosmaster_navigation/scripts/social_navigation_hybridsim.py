@@ -159,7 +159,7 @@ class SocialNavigatorHybrid(Node):
         self.create_timer(0.1, self.analyse_loop) 
 
         self.get_logger().info(f"Social Navigation Hybrid Tracker use Depth point clouds and Bounding Boxes for human detection and creating social obstacles based on their engagement level active on {self.social_obstacle_topic}")
-
+        self.get_logger().info(f"Here We use Klaman Filter to reduce the noise without MediaPipe")
     def rgb_cb(self, msg):
         with self.data_lock: self.latest_rgb = msg
 
