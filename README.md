@@ -148,8 +148,8 @@ python3 mediapipe_detector.py
 
 **Terminal 3: Launch Social Navigation**
 ```bash
-# In the same Conda environment (gemini_env)
-conda activate gemini_env
+
+conda deactivate gemini_env
 
 # Ensure your API Key is set
 export GEMINI_API_KEY="AIzaSy...YOUR_KEY"
@@ -180,13 +180,6 @@ The MediaPipe-based approach provides:
 2. **Machine learning-based pose estimation** — More robust than bounding box center estimation
 3. **Jitter-free tracking** — Eliminates the ghosting and noise issues present in KF-only methods
 
-### Engagement-Based Navigation
-
-| Engagement Level | Human Activity | Obstacle Radius | Robot Behavior |
-|------------------|----------------|-----------------|----------------|
-| **HIGH** | Conversation, interacting | 0.85m | Wide detour — don't interrupt |
-| **MEDIUM** | Standing, looking around | 0.60m | Moderate buffer |
-| **LOW** | Walking, passing through | 0.35m | Can pass closer |
 
 ### Sample Output
 
