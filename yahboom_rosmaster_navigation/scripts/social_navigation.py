@@ -2,9 +2,8 @@
 """
 NODE 2: Social Navigator (Step 3 & 4)
 =====================================
-1. Filtering (EKF): Stabilizes the noisy input from Node 1.
-2. Intelligence (Gemini): Determines engagement.
-3. Reporting: Prints 'Raw vs Filtered' statistics to prove stability.
+Handles EKF tracking, zero-shot semantic analysis via Gemini, 
+and dynamic Costmap generation for complex social scenarios.
 
 In terminal 1:
 ros2 run tf2_ros static_transform_publisher -0.10 0 0.052 0 -1.5708 0 lio_gripper_interface_link camera_link
@@ -42,7 +41,7 @@ import os
 
 # EKF STABILIZER
 class HumanTracker:
-    def __init__(self, x, y, z, engagement="low"):
+    def __init__(self, x, y, z):
         self.id = uuid.uuid4().int & (1<<32)-1
         
         # EKF State [x, y, vx, vy]
@@ -67,7 +66,8 @@ class HumanTracker:
         self.R = np.eye(2) * 0.3
 
         self.z = z
-        self.engagement = engagement 
+        self.semantic_state = 'ignoring'
+        self.target_ids = []
         self.last_update = time.time()
         self.alpha = 0.2  # For low-pass filtering of Z (Depth)
         # LOGS FOR REPORT
@@ -129,8 +129,9 @@ class SocialNavigator(Node):
                 return
             
         # TOPICS
+        self.rgb_topic = '/annotated_image'  # From MediPipe Detector for bouding box and IDs
         self.pose_topic = '/detected_humans'
-        self.rgb_topic = '/camera/camera/color/image_raw'
+        #self.rgb_topic = '/camera/camera/color/image_raw'
         self.target_frame = 'LIO_base_link' 
 
         genai.configure(api_key=self.api_key)
@@ -171,16 +172,24 @@ class SocialNavigator(Node):
             return
 
         for pose in msg.poses:
-            map_pt = self.transform_point(pose.position.x, pose.position.y, pose.position.z, frame_id, stamp)
-            
+            pt = PointStamped()
+            pt.header.frame_id = frame_id
+            pt.header.stamp = self.get_clock().now().to_msg()
+            pt.point.x, pt.point.y, pt.point.z = pose.position.x, pose.position.y, pose.position.z
+            #map_pt = self.transform_point(pose.position.x, pose.position.y, pose.position.z, frame_id, stamp)
+            try:
+                out = self.tf_buffer.transform(pt, self.target_frame, timeout=rclpy.duration.Duration(seconds=0.2))
+                detections.append({'x': out.point.x, 'y': out.point.y, 'z': out.point.z})
+            except Exception:
+                pass
             # Debug log 
-            if map_pt is None:
-                self.get_logger().warn("Transform failed silently!")
-            else:
-                pass # self.get_logger().info(f"Transform OK: {map_pt}")
+            # if map_pt is None:
+            #     self.get_logger().warn("Transform failed silently!")
+            # else:
+            #     pass # self.get_logger().info(f"Transform OK: {map_pt}")
             
-            if map_pt:
-                detections.append({'x': map_pt[0], 'y': map_pt[1], 'z': map_pt[2]})
+            # if map_pt:
+            #     detections.append({'x': map_pt[0], 'y': map_pt[1], 'z': map_pt[2]})
 
         self.update_ekf(detections)
 
@@ -197,7 +206,8 @@ class SocialNavigator(Node):
             min_dist = 5.0 
             
             for t in self.trackers:
-                if t in used_trackers: continue
+                if t in used_trackers: 
+                    continue
                 dist = math.sqrt((t.state[0, 0]-det['x'])**2 + (t.state[1, 0]-det['y'])**2)
                 if dist < min_dist:
                     min_dist = dist
@@ -242,13 +252,14 @@ class SocialNavigator(Node):
         print(f"FILTERED OUTPUT By KF:")
         print(f"  X: ±{std_ekf[0]:.4f} m")
         print(f"  Y: ±{std_ekf[1]:.4f} m")
-        print(f"  Z: ±{std_ekf[2]:.4f} m Depth ")
+        #print(f"  Z: ±{std_ekf[2]:.4f} m Depth ")
         print("-" * 50)
         #print("This proves (Depth) is noisy and (EKF) fixes it.")
         print("="*50 + "\n")
 
     def trigger_gemini(self):
-        if self.gemini_busy or not self.latest_rgb or not self.trackers: return
+        if self.gemini_busy or not self.latest_rgb or not self.trackers:
+            return
         self.gemini_busy = True
         img_copy = self.latest_rgb
         self.thread_executor.submit(self.process_gemini, img_copy)
@@ -258,20 +269,44 @@ class SocialNavigator(Node):
             cv_img = self.bridge.imgmsg_to_cv2(msg, 'bgr8')
             pil_img = PILImage.fromarray(cv2.cvtColor(cv_img, cv2.COLOR_BGR2RGB))
             pil_img = pil_img.resize((320, 240)) 
-            prompt = 'Determine engagement. JSON: {"humans": [{"engagement": "high"}]}'
+
+
+
+            prompt = """
+            Analyze this image for social navigation robotics. You will see humans with numbered bounding boxes (ID 0, 1, 2...).
+            Rely on zero-shot visual reasoning to classify their social state.
+            Return a JSON array named "humans". For each human ID, provide:
+            1. "id": The integer ID from the image.
+            2. "state": MUST be one of: ["ignoring", "conversation", "photography", "sharedtask", "playing", "presenting", "parallelwalking"].
+            3. "target_ids": A list of IDs they are interacting with. If none, return [].
+            4. "gaze": Direction of attention ["left", "right", "forward", "backward", "at_target"].
+            Example: {"humans": [{"id": 0, "state": "photography", "target_ids": [1], "gaze": "at_target"}]}
+            """
+
+
             resp = self.model.generate_content([prompt, pil_img])
             text = resp.text.strip().replace("```json", "").replace("```", "")
             if "'" in text: text = text.replace("'", '"')
             data = json.loads(text[text.find('{'):text.rfind('}')+1])
             humans = data.get('humans', [])
 
+            # Sort trackers left to right 
+            sorted_trackers = sorted(self.trackers, key=lambda t: float(t.state[1, 0]), reverse=True)
+            gaze_map = {'forward': 0.0, 'left': math.pi/2.0, 'backward': math.pi, 'right': -math.pi/2.0, 'at_target': 0.0}
+
             for h in humans:
-                eng = h.get('engagement', 'low').lower()
-                if eng == 'high' and self.trackers:
-                    self.trackers[0].engagement = 'high'
-                    self.get_logger().info("Gemini: High Engagement.")
-        except: pass 
-        finally: self.gemini_busy = False
+                idx = h.get('id', -1)
+                if 0 <= idx < len(sorted_trackers):
+                    sorted_trackers[idx].semantic_state = h.get('state', 'ignoring').lower()
+                    sorted_trackers[idx].target_ids = h.get('target_ids', [])
+                    sorted_trackers[idx].gaze_yaw = gaze_map.get(h.get('gaze', 'forward').lower(), 0.0)
+                    
+            self.get_logger().info(f"Semantics Updated: {[(t.semantic_state, t.target_ids) for t in sorted_trackers]}")
+
+        except Exception as e: 
+            pass
+        finally: 
+            self.gemini_busy = False
 
     def analyse_loop(self):
         # Generate visualization markers and point cloud for obstacles
@@ -281,86 +316,173 @@ class SocialNavigator(Node):
         delete_m = Marker()
         delete_m.action = Marker.DELETEALL
         marker_array.markers.append(delete_m)
+        sorted_trackers = sorted(self.trackers, key=lambda t: float(t.state[1, 0]), reverse=True)
+        drawn_pairs = set()
 
         pairs = []
-        for i in range(len(self.trackers)):
-            t = self.trackers[i]
+        # Single cylinder for each human
+        for t in sorted_trackers:
             m = Marker()
-            m.header.frame_id = self.target_frame
-            m.header.stamp = self.get_clock().now().to_msg()
-            m.ns = "humans"
-            m.id = t.id 
-            m.type = Marker.CYLINDER
-            m.action = Marker.ADD
+            m.header.frame_id = self.target_frame; m.header.stamp = self.get_clock().now().to_msg()
+            m.ns = "humans"; m.id = t.id; m.type = Marker.CYLINDER; m.action = Marker.ADD
             m.pose.position.x = float(t.state[0, 0]); m.pose.position.y = float(t.state[1, 0]); m.pose.position.z = 0.9
-            m.scale.x = 0.5; m.scale.y = 0.5; m.scale.z = 1.8
-            if t.engagement == 'high' or 'Medium' in t.engagement: 
-                m.color.r = 0.0; m.color.g = 1.0; m.color.b = 0.0 
-            else: 
-                m.color.r = 1.0; m.color.g = 0.0; m.color.b = 0.0 
+
+            # Dynamic personal space based on state
+            if t.semantic_state == 'ignoring':
+                m.scale.x = 0.4; m.scale.y = 0.4; m.scale.z = 1.8 # Small space
+                m.color.r = 1.0; m.color.g = 0.0; m.color.b = 0.0
+                self.add_cylinder_points(cloud_points, float(t.state[0, 0]), float(t.state[1, 0]), 0.25)
+            else:
+                m.scale.x = 0.6; m.scale.y = 0.6; m.scale.z = 1.8 # Normal space
+                m.color.r = 0.0; m.color.g = 1.0; m.color.b = 0.0
+                self.add_cylinder_points(cloud_points, float(t.state[0, 0]), float(t.state[1, 0]), 0.35)
+            
             m.color.a = 0.8
             marker_array.markers.append(m)
-            self.add_cylinder_points(cloud_points, float(t.state[0, 0]), float(t.state[1, 0]), 0.25)
-            
-            # find pairs or more for walls
-            for j in range(i + 1, len(self.trackers)):
-                t2 = self.trackers[j]
-                dx = float(t.state[0, 0]) - float(t2.state[0, 0])
-                dy = float(t.state[1, 0]) - float(t2.state[1, 0])
-                dist = math.sqrt(dx*dx + dy*dy)
-                if dist < 2.0:
-                    pairs.append((t, t2, dist, dx, dy))
 
-        for (t1, t2, dist, dx, dy) in pairs:
-            wall_m = Marker()
-            wall_m.header.frame_id = self.target_frame
-            wall_m.header.stamp = self.get_clock().now().to_msg()
-            wall_m.ns = "walls"
-            wall_m.id = (t1.id + t2.id) & 0xFFFFFF
-            wall_m.type = Marker.CUBE
-            wall_m.action = Marker.ADD
+            # Precenting 
+            if t.semantic_state == 'presenting':
+                wall_length = 2.0
+                dx = wall_length * math.cos(t.gaze_yaw)
+                dy = wall_length * math.sin(t.gaze_yaw)
+                self.draw_wall(marker_array, cloud_points, t, None, dx, dy, color=(1.0, 0.5, 0.0), is_frustum=True)
 
-            # Position at midpoint
-            wall_m.pose.position.x = (float(t1.state[0, 0]) + float(t2.state[0, 0])) / 2.0
-            wall_m.pose.position.y = (float(t1.state[1, 0]) + float(t2.state[1, 0])) / 2.0
-            wall_m.pose.position.z = 0.9
 
-            # Calculate orientation, angle between the two trackers
-            angle = math.atan2(dy, dx)
 
-            # Covert angle to quaternion
-            wall_m.pose.orientation.z = math.sin(angle / 2.0)
-            wall_m.pose.orientation.w = math.cos(angle / 2.0)
+        # Semantic interactions
+        for i, t1 in enumerate(sorted_trackers):
+            for target_idx in t1.target_ids:
+                if 0 <= target_idx < len(sorted_trackers) and target_idx != i:
+                    t2 = sorted_trackers[target_idx]
 
-            wall_m.scale.x = dist # length of the wall
-            wall_m.scale.y = 0.2 # thickness of the wall
-            wall_m.scale.z = 1.8 # height of the wall
-            wall_m.color.r = 0.0; wall_m.color.g = 0.0; wall_m.color.b = 1.0; wall_m.color.a = 0.5 
-            marker_array.markers.append(wall_m)
-            steps = int(dist / 0.1)
-            for s in range(steps):
-                # r 
-                r = s / float(steps)
-                px = (1-r)*float(t1.state[0, 0]) + r*float(t2.state[0, 0])
-                py = (1-r)*float(t1.state[1, 0]) + r*float(t2.state[1, 0])
-                self.add_cylinder_points(cloud_points, px, py, 0.1)
+                    pair_key = tuple(sorted([t1.id, t2.id]))
+                    if pair_key in drawn_pairs:
+                        continue
+                    drawn_pairs.add(pair_key)
+                    dx = float(t2.state[0, 0]) - float(t1.state[0, 0])
+                    dy = float(t2.state[1, 0]) - float(t1.state[1, 0])
+                    
+
+                    # Photography purple line
+                    if t1.semantic_state == 'photography' or t2.semantic_state == 'photography':
+                        self.draw_wall(marker_array, cloud_points, t1, t2, dx, dy, color=(1.0, 0.0, 1.0), thickness=0.1)
+
+                    # Conversation blue line
+                    elif t1.semantic_state == 'conversation' or t2.semantic_state == 'conversation':
+                        self.draw_wall(marker_array, cloud_points, t1, t2, dx, dy, color=(0.0, 0.0, 1.0), thickness=0.2)
+
+                    # Shared Task, Playing, Parallel Walking, green box
+                    elif t1.semantic_state in ['sharedtask', 'playing', 'parallelwalking']:
+                        self.draw_wall(marker_array, cloud_points, t1, t2, dx, dy, color=(0.0, 1.0, 0.0), thickness=0.6)
 
         self.marker_pub.publish(marker_array)
         if cloud_points: self.publish_cloud(b''.join(cloud_points), len(cloud_points))
         else: self.publish_cloud(b'', 0)
 
-    def transform_point(self, x, y, z, from_frame, time_stamp):
-        if self.target_frame == from_frame: return (x,y,z)
-        pt = PointStamped()
-        pt.header.frame_id = from_frame
-        pt.header.stamp = self.get_clock().now().to_msg()
-        pt.point.x, pt.point.y, pt.point.z = float(x), float(y), float(z)
-        try:
-            out = self.tf_buffer.transform(pt, self.target_frame, timeout=rclpy.duration.Duration(seconds=0.2))
-            return (out.point.x, out.point.y, out.point.z)
-        except Exception as e:
-            self.get_logger().warn(f"Real TF Error: {e}")
-            return None
+        #     self.add_cylinder_points(cloud_points, float(t.state[0, 0]), float(t.state[1, 0]), 0.25)
+            
+        #     # find pairs or more for walls
+        #     for j in range(i + 1, len(self.trackers)):
+        #         t2 = self.trackers[j]
+        #         dx = float(t.state[0, 0]) - float(t2.state[0, 0])
+        #         dy = float(t.state[1, 0]) - float(t2.state[1, 0])
+        #         dist = math.sqrt(dx*dx + dy*dy)
+        #         pairs.append((t, t2, dist, dx, dy))
+
+        # for (t1, t2, dist, dx, dy) in pairs:
+        #     if t1.engagement == 'high' and t2.engagement == 'high':
+        #         wall_m = Marker()
+        #         wall_m.header.frame_id = self.target_frame
+        #         wall_m.header.stamp = self.get_clock().now().to_msg()
+        #         wall_m.ns = "walls"
+        #         wall_m.id = (t1.id + t2.id) & 0xFFFFFF
+        #         wall_m.type = Marker.CUBE
+        #         wall_m.action = Marker.ADD
+
+        #         # Position at midpoint
+        #         wall_m.pose.position.x = (float(t1.state[0, 0]) + float(t2.state[0, 0])) / 2.0
+        #         wall_m.pose.position.y = (float(t1.state[1, 0]) + float(t2.state[1, 0])) / 2.0
+        #         wall_m.pose.position.z = 0.9
+
+        #         # Calculate orientation, angle between the two trackers
+        #         angle = math.atan2(dy, dx)
+
+        #         # Covert angle to quaternion
+        #         wall_m.pose.orientation.z = math.sin(angle / 2.0)
+        #         wall_m.pose.orientation.w = math.cos(angle / 2.0)
+
+        #         wall_m.scale.x = dist # length of the wall
+        #         wall_m.scale.y = 0.2 # thickness of the wall
+        #         wall_m.scale.z = 1.8 # height of the wall
+        #         wall_m.color.r = 0.0; wall_m.color.g = 0.0; wall_m.color.b = 1.0; wall_m.color.a = 0.5
+        #         marker_array.markers.append(wall_m)
+        #     else:
+        #         continue
+            
+
+        #     steps = int(dist / 0.1)
+        #     for s in range(steps):
+        #         # r 
+        #         r = s / float(steps)
+        #         px = (1-r)*float(t1.state[0, 0]) + r*float(t2.state[0, 0])
+        #         py = (1-r)*float(t1.state[1, 0]) + r*float(t2.state[1, 0])
+        #         self.add_cylinder_points(cloud_points, px, py, 0.1)
+
+        # self.marker_pub.publish(marker_array)
+        # if cloud_points: self.publish_cloud(b''.join(cloud_points), len(cloud_points))
+        # else: self.publish_cloud(b'', 0)
+
+
+    def draw_wall(self, marker_array, cloud_points, t1, t2, dx, dy, color, thickness=0.2, is_frustum=False):
+        wall_m = Marker()
+        wall_m.header.frame_id = self.target_frame; wall_m.header.stamp = self.get_clock().now().to_msg()
+        wall_m.ns = "semantic_walls"
+        wall_m.id = (t1.id + (t2.id if t2 else 999)) & 0xFFFFFF
+        wall_m.type = Marker.CUBE; wall_m.action = Marker.ADD
+
+        if is_frustum:
+            wall_m.pose.position.x = float(t1.state[0, 0]) + (dx / 2.0)
+            wall_m.pose.position.y = float(t1.state[1, 0]) + (dy / 2.0)
+            dist = math.sqrt(dx*dx + dy*dy)
+        else:
+            wall_m.pose.position.x = float(t1.state[0, 0]) + (dx / 2.0)
+            wall_m.pose.position.y = float(t1.state[1, 0]) + (dy / 2.0)
+            dist = math.sqrt(dx*dx + dy*dy)
+
+        angle = math.atan2(dy, dx)
+        wall_m.pose.orientation.z = math.sin(angle / 2.0)
+        wall_m.pose.orientation.w = math.cos(angle / 2.0)
+
+        wall_m.scale.x = dist
+        wall_m.scale.y = thickness
+        wall_m.scale.z = 1.8
+        wall_m.color.r, wall_m.color.g, wall_m.color.b = color
+        wall_m.color.a = 0.5
+        marker_array.markers.append(wall_m)
+
+        steps = int(dist / 0.1)
+        for s in range(steps):
+            r = s / float(steps)
+            px = float(t1.state[0, 0]) + (r * dx)
+            py = float(t1.state[1, 0]) + (r * dy)
+            # Make pointcloud width match visual thickness
+            self.add_cylinder_points(cloud_points, px, py, thickness / 2.0)
+
+
+
+    # def transform_point(self, x, y, z, from_frame, time_stamp):
+    #     if self.target_frame == from_frame: 
+    #         return (x,y,z)
+    #     pt = PointStamped()
+    #     pt.header.frame_id = from_frame
+    #     pt.header.stamp = self.get_clock().now().to_msg()
+    #     pt.point.x, pt.point.y, pt.point.z = float(x), float(y), float(z)
+    #     try:
+    #         out = self.tf_buffer.transform(pt, self.target_frame, timeout=rclpy.duration.Duration(seconds=0.2))
+    #         return (out.point.x, out.point.y, out.point.z)
+    #     except Exception as e:
+    #         self.get_logger().warn(f"Real TF Error: {e}")
+    #         return None
 
     def add_cylinder_points(self, cloud_points, cx, cy, radius):
         for h_idx in range(5):

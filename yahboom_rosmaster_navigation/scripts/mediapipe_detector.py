@@ -38,7 +38,7 @@ class MultiPersonMediaPipe(Node):
     def __init__(self):
         super().__init__('mediapipe_detector')
         
-        self.debug_image_path = "/home/aesmaeily/ros2_ws/src/test_images/mediapipe_image.jpg"
+        self.debug_image_path = "/home/aesmaeily/ros2_ws/src/test_images/mediapipe_labe_box_Id_image.jpg"
         self.ensure_dir(self.debug_image_path)
         
         # MODEL PATH for MediaPipe Pose Landmarker (Heavy version) in order to detect multiple people. Make sure this file exists!
@@ -72,6 +72,10 @@ class MultiPersonMediaPipe(Node):
         )
         # Publish from Node 1 (Detector) /detected_humans
         self.human_pub = self.create_publisher(PoseArray, '/detected_humans', 10)
+        # Publish Image with bouding box and IDs for AI
+        self.annotated_pub = self.create_publisher(Image, '/annotated_image', 10)
+
+
         self.bridge = CvBridge()
         self.latest_rgb = None
         self.latest_depth = None
@@ -135,29 +139,67 @@ class MultiPersonMediaPipe(Node):
             img_h, img_w, _ = cv_img.shape
             rgb_cv = cv2.cvtColor(cv_img, cv2.COLOR_BGR2RGB)
             depth_cv = self.bridge.imgmsg_to_cv2(depth_curr, 'passthrough')
+            
+            # create a copy of draw bouding boxes 
+            #annotated_cv = rgb_cv.copy()
+            annotated_cv = cv_img.copy()
 
             mp_image = mp.Image(image_format=mp.ImageFormat.SRGB, data=rgb_cv)
             detection_result = self.detector.detect(mp_image)
             
-        
-            num_people = len(detection_result.pose_landmarks)
-            if self.frame_count % 30 == 0:
-                self.get_logger().info(f"Processing... Found {num_people} people.")
-
-            pose_msg = PoseArray()
-            pose_msg.header = rgb_curr.header 
-            
+            # Filter visibile people
+            valid_people = []
             # The code is very dependent on Shoulders as landmakrs, if it is not visible we skip that person. 
-            for idx, landmarks in enumerate(detection_result.pose_landmarks):
-                l_shoulder = landmarks[11] # Left Shoulder is landmark 11 in MediaPipe Pose ans 12 is Right Shoulder
+            for landmarks in detection_result.pose_landmarks:
+                l_shoulder = landmarks[11]
                 r_shoulder = landmarks[12]
                 if l_shoulder.visibility < 0.5 or r_shoulder.visibility < 0.5: 
                     continue
-
+                # Center for Depth
                 u = int((l_shoulder.x + r_shoulder.x) / 2.0 * img_w)
                 v = int((l_shoulder.y + r_shoulder.y) / 2.0 * img_h)
                 u = max(0, min(u, img_w - 1))
                 v = max(0, min(v, img_h - 1))
+
+                # Bouding box here
+                x_coords = [lm.x for lm in landmarks if lm.visibility > 0.4]    
+                y_coords = [lm.y for lm in landmarks if lm.visibility > 0.4]
+                if not x_coords or not y_coords:
+                    continue
+
+                raw_x_min = min(x_coords) * img_w
+                raw_y_min = min(y_coords) * img_h
+                raw_x_max = max(x_coords) * img_w
+                raw_y_max = max(y_coords) * img_h
+                box_width = raw_x_max - raw_x_min
+                box_height = raw_y_max - raw_y_min
+
+                # Add padding to the bounding box
+                pad_x = box_width * 0.10
+                pad_y = box_height * 0.05
+
+                x_min = max(0, int(raw_x_min - pad_x))
+                y_min = max(0, int(raw_y_min - pad_y))
+                x_max = min(img_w, int(raw_x_max + pad_x))
+                y_max = min(img_h, int(raw_y_max + pad_y))
+
+                valid_people.append({'landmarks': landmarks, 'u': u, 'v': v, 'bbox': (x_min, y_min, x_max, y_max)})
+
+            valid_people.sort(key = lambda person: person['u']) # Sort from left to right based on u coordinate
+        
+            if self.frame_count % 30 == 0:
+                self.get_logger().info(f"Processing... Found {len(valid_people)} people.")
+
+            pose_msg = PoseArray()
+            pose_msg.header = rgb_curr.header # Use the same timestamp and frame as the RGB image
+
+            for idx, person in enumerate(valid_people):
+                u, v = person['u'], person['v']
+                x_min, y_min, x_max, y_max = person['bbox']
+                # Draw bouding box and ID on the annotated image
+                cv2.rectangle(annotated_cv, (x_min, y_min), (x_max, y_max), (0, 255, 0), 2)
+                lable = f"ID {idx + 1}"
+                cv2.putText(annotated_cv, lable, (x_min, y_min - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.9, (0, 255, 0), 2)
 
                 # Depth lookup
                 z_raw_mm = 0
@@ -185,6 +227,14 @@ class MultiPersonMediaPipe(Node):
             if len(pose_msg.poses) > 0:
                 self.human_pub.publish(pose_msg)
             
+            # Publish the annotated image for visualization
+            annotated_msg = self.bridge.cv2_to_imgmsg(annotated_cv, encoding="bgr8")
+            annotated_msg.header = rgb_curr.header
+            self.annotated_pub.publish(annotated_msg)
+
+            # Debug
+            cv2.imwrite(self.debug_image_path, annotated_cv)
+
             self.frame_count += 1
 
         except Exception as e:
