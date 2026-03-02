@@ -12,7 +12,7 @@ In terminal 2:
 ros2 run tf2_ros static_transform_publisher 0 0 0.5 0 0 0 LIO_base_link camera_link
 
 In terminal 3:
-python3 /home/aesmaeily/ros2_ws/src/yahboom_rosmaster/yahboom_rosmaster_navigation/scripts/navigation_mediapipe_test.py
+python3 /home/aesmaeily/ros2_ws/src/yahboom_rosmaster/yahboom_rosmaster_navigation/scripts/yolo_detector.py
 
 Author: Abolghasem Esmaeily
 """
@@ -60,14 +60,14 @@ class HumanTracker:
         #self.R = np.eye(2) * 0.5  
 
         # For fast moving humans, we can set a higher velocity to be more responsive, like below.
-        self.Q = np.diag([0.05, 0.05, 0.2, 0.2])
+        self.Q = np.diag([0.2, 0.2, 0.5, 0.5])
          
         # Low Measurement Noise: Trust more the camera between 0.1-0.5, Faster movement
-        self.R = np.eye(2) * 0.3
+        self.R = np.eye(2) * 0.05
 
         self.z = z
-        self.semantic_state = 'ignoring'
-        self.target_ids = []
+        self.social_edges = {}
+        #self.target_ids = []
         self.last_update = time.time()
         self.alpha = 0.2  # For low-pass filtering of Z (Depth)
         # LOGS FOR REPORT
@@ -88,8 +88,8 @@ class HumanTracker:
         self.state = A @ self.state
         self.P = A @ self.P @ A.T + self.Q
         # Friction
-        self.state[2, 0] *= 0.8
-        self.state[3, 0] *= 0.8 
+        self.state[2, 0] *= 0.95
+        self.state[3, 0] *= 0.95 
 
     def update(self, measured_x, measured_y, measured_z):
         self.last_update = time.time()
@@ -158,7 +158,7 @@ class SocialNavigator(Node):
 
     def pose_cb(self, msg):
         frame_id = msg.header.frame_id
-        stamp = msg.header.stamp
+        #stamp = msg.header.stamp
         detections = []
 
 
@@ -268,43 +268,82 @@ class SocialNavigator(Node):
         try:
             cv_img = self.bridge.imgmsg_to_cv2(msg, 'bgr8')
             pil_img = PILImage.fromarray(cv2.cvtColor(cv_img, cv2.COLOR_BGR2RGB))
-            pil_img = pil_img.resize((320, 240)) 
+            pil_img = pil_img.resize((640, 480)) 
+
+            #self.get_logger().info(f"Triggering Gemini... Humans in memory: {len(self.trackers)}")
 
 
 
             prompt = """
-            Analyze this image for social navigation robotics. You will see humans with numbered bounding boxes (ID 0, 1, 2...).
-            Rely on zero-shot visual reasoning to classify their social state.
-            Return a JSON array named "humans". For each human ID, provide:
-            1. "id": The integer ID from the image.
-            2. "state": MUST be one of: ["ignoring", "conversation", "photography", "sharedtask", "playing", "presenting", "parallelwalking"].
-            3. "target_ids": A list of IDs they are interacting with. If none, return [].
-            4. "gaze": Direction of attention ["left", "right", "forward", "backward", "at_target"].
-            Example: {"humans": [{"id": 0, "state": "photography", "target_ids": [1], "gaze": "at_target"}]}
+            You are the vision system for a social navigation robot. Look at the humans marked with numbered bounding boxes (ID 0, 1, 2...).
+            Your job is to evaluate the invisible social boundaries in the room. Do not classify specific activities. 
+            
+            RULES:
+            - If there is 0 or 1 person in the image, return an empty array: {"social_links": []}
+            - If people are in a group of 3 or more (e.g., 0, 1, 2), you MUST break them down and evaluate every single combination as a separate pair (e.g., [0,1], [1,2], [0,2]).
+            
+            Return a strict JSON object with one array named "social_links". For each pair, provide:
+            1. "pair": A list of exactly two human IDs (e.g., [0, 1]).
+            2. "engagement": How strongly these two specific people are interacting ["low", "medium", "high"].
+            3. "robot_can_cross": A float probability between 0.0 and 1.0. 0.0 means the robot absolutely cannot cross (it would break a strong social boundary), and 1.0 means there is absolutely no problem crossing.
+            4. "reason": One short sentence explaining why.
             """
 
 
             resp = self.model.generate_content([prompt, pil_img])
-            text = resp.text.strip().replace("```json", "").replace("```", "")
-            if "'" in text: text = text.replace("'", '"')
-            data = json.loads(text[text.find('{'):text.rfind('}')+1])
-            humans = data.get('humans', [])
+            self.get_logger().info(f"RAW GEMINI OUTPUT:\n{resp.text}")
+            text = resp.text.strip()
+            start_idx = text.find('{')
+            end_idx = text.rfind('}')
+            
+            if start_idx == -1 or end_idx == -1:
+                # If no JSON is found, print what Gemini actually said and exit safely!
+                self.get_logger().warn(f"Gemini returned non-JSON text:\n{text}")
+                return
+                
+            json_str = text[start_idx:end_idx+1]
+            if "'" in json_str: 
+                json_str = json_str.replace("'", '"')
 
+            data = json.loads(json_str)
+            social_links = data.get('social_links', [])
+    
             # Sort trackers left to right 
             sorted_trackers = sorted(self.trackers, key=lambda t: float(t.state[1, 0]), reverse=True)
-            gaze_map = {'forward': 0.0, 'left': math.pi/2.0, 'backward': math.pi, 'right': -math.pi/2.0, 'at_target': 0.0}
+            #gaze_map = {'forward': 0.0, 'left': math.pi/2.0, 'backward': math.pi, 'right': -math.pi/2.0, 'at_target': 0.0}
 
-            for h in humans:
-                idx = h.get('id', -1)
-                if 0 <= idx < len(sorted_trackers):
-                    sorted_trackers[idx].semantic_state = h.get('state', 'ignoring').lower()
-                    sorted_trackers[idx].target_ids = h.get('target_ids', [])
-                    sorted_trackers[idx].gaze_yaw = gaze_map.get(h.get('gaze', 'forward').lower(), 0.0)
+            # Claer old edges/nerworks
+            for t in sorted_trackers:
+                t.social_edges = {}
+            
+            # Build a probabilistic network
+            for link in social_links:
+                pair = link.get('pair', [])
+                can_cross = link.get('robot_can_cross', 1.0) 
+                reason = link.get('reason', 'No reason given')
+
+                if len(pair) == 2:
+                    id_A = int(pair[0])
+                    id_B = int(pair[1])
+
+                if id_A > 0 and id_B > 0 and (id_A == len(sorted_trackers) or id_B == len(sorted_trackers)):
+                        id_A -= 1 # Correct for Python 0-indexing vs Gemini's 1-indexing
+                        id_B -= 1
+                        
+                self.get_logger().info(f"Mapped Pair [{id_A}, {id_B}] | Can Cross: {can_cross:.2f} | Reason: {reason}")
+                
+                if 0 <= id_A < len(sorted_trackers) and 0 <= id_B < len(sorted_trackers):
+                    prob_cross = float(can_cross)
+                    sorted_trackers[id_A].social_edges[id_B] = prob_cross
+                    sorted_trackers[id_B].social_edges[id_A] = prob_cross
                     
-            self.get_logger().info(f"Semantics Updated: {[(t.semantic_state, t.target_ids) for t in sorted_trackers]}")
-
-        except Exception as e: 
-            pass
+                    # ADD THIS LOGGING STATEMENT:
+                    self.get_logger().info(f"Edge [{id_A}-{id_B}] | Cross Prob: {prob_cross:.2f} | Reason: {reason}")     
+                else:
+                    self.get_logger().warn(f"Ignored out-of-bounds pair: {pair} for {len(sorted_trackers)} trackers.")
+        
+        except Exception as e:
+            self.get_logger().error(f"Gemini Error: {e}")
         finally: 
             self.gemini_busy = False
 
@@ -319,7 +358,6 @@ class SocialNavigator(Node):
         sorted_trackers = sorted(self.trackers, key=lambda t: float(t.state[1, 0]), reverse=True)
         drawn_pairs = set()
 
-        pairs = []
         # Single cylinder for each human
         for t in sorted_trackers:
             m = Marker()
@@ -327,110 +365,37 @@ class SocialNavigator(Node):
             m.ns = "humans"; m.id = t.id; m.type = Marker.CYLINDER; m.action = Marker.ADD
             m.pose.position.x = float(t.state[0, 0]); m.pose.position.y = float(t.state[1, 0]); m.pose.position.z = 0.9
 
-            # Dynamic personal space based on state
-            if t.semantic_state == 'ignoring':
-                m.scale.x = 0.4; m.scale.y = 0.4; m.scale.z = 1.8 # Small space
-                m.color.r = 1.0; m.color.g = 0.0; m.color.b = 0.0
-                self.add_cylinder_points(cloud_points, float(t.state[0, 0]), float(t.state[1, 0]), 0.25)
-            else:
-                m.scale.x = 0.6; m.scale.y = 0.6; m.scale.z = 1.8 # Normal space
-                m.color.r = 0.0; m.color.g = 1.0; m.color.b = 0.0
-                self.add_cylinder_points(cloud_points, float(t.state[0, 0]), float(t.state[1, 0]), 0.35)
-            
-            m.color.a = 0.8
+            # Standard personal space for all humans
+            m.scale.x = 0.5; m.scale.y = 0.5; m.scale.z = 1.8 
+            m.color.r = 0.0; m.color.g = 0.8; m.color.b = 1.0; m.color.a = 0.8
             marker_array.markers.append(m)
+            self.add_cylinder_points(cloud_points, float(t.state[0, 0]), float(t.state[1, 0]), 0.25)
 
-            # Precenting 
-            if t.semantic_state == 'presenting':
-                wall_length = 2.0
-                dx = wall_length * math.cos(t.gaze_yaw)
-                dy = wall_length * math.sin(t.gaze_yaw)
-                self.draw_wall(marker_array, cloud_points, t, None, dx, dy, color=(1.0, 0.5, 0.0), is_frustum=True)
-
-
-
-        # Semantic interactions
+        # DRAW SOCIAL GRAPH EDGES
         for i, t1 in enumerate(sorted_trackers):
-            for target_idx in t1.target_ids:
-                if 0 <= target_idx < len(sorted_trackers) and target_idx != i:
-                    t2 = sorted_trackers[target_idx]
-
-                    pair_key = tuple(sorted([t1.id, t2.id]))
-                    if pair_key in drawn_pairs:
-                        continue
-                    drawn_pairs.add(pair_key)
-                    dx = float(t2.state[0, 0]) - float(t1.state[0, 0])
-                    dy = float(t2.state[1, 0]) - float(t1.state[1, 0])
-                    
-
-                    # Photography purple line
-                    if t1.semantic_state == 'photography' or t2.semantic_state == 'photography':
-                        self.draw_wall(marker_array, cloud_points, t1, t2, dx, dy, color=(1.0, 0.0, 1.0), thickness=0.1)
-
-                    # Conversation blue line
-                    elif t1.semantic_state == 'conversation' or t2.semantic_state == 'conversation':
-                        self.draw_wall(marker_array, cloud_points, t1, t2, dx, dy, color=(0.0, 0.0, 1.0), thickness=0.2)
-
-                    # Shared Task, Playing, Parallel Walking, green box
-                    elif t1.semantic_state in ['sharedtask', 'playing', 'parallelwalking']:
-                        self.draw_wall(marker_array, cloud_points, t1, t2, dx, dy, color=(0.0, 1.0, 0.0), thickness=0.6)
+            for target_idx, can_cross in t1.social_edges.items():
+                
+                # Prevent drawing duplicate walls
+                pair_key = tuple(sorted([i, target_idx]))
+                if pair_key in drawn_pairs:
+                    continue
+                drawn_pairs.add(pair_key)
+                
+                t2 = sorted_trackers[target_idx]
+                dx = float(t2.state[0, 0]) - float(t1.state[0, 0])
+                dy = float(t2.state[1, 0]) - float(t1.state[1, 0])
+                
+                # Navigation Logic
+                if can_cross < 0.5:
+                    # BLOCKED: Draw a solid Red Wall and add it to PointCloud (Costmap)
+                    self.draw_wall(marker_array, cloud_points, t1, t2, dx, dy, color=(1.0, 0.0, 0.0), thickness=0.4)
+                else:
+                    # OPEN: Draw a faint Green Line in RViz, but PASS AN EMPTY LIST to keep the Costmap clear!
+                    self.draw_wall(marker_array, [], t1, t2, dx, dy, color=(0.0, 1.0, 0.0), thickness=0.05)
 
         self.marker_pub.publish(marker_array)
         if cloud_points: self.publish_cloud(b''.join(cloud_points), len(cloud_points))
         else: self.publish_cloud(b'', 0)
-
-        #     self.add_cylinder_points(cloud_points, float(t.state[0, 0]), float(t.state[1, 0]), 0.25)
-            
-        #     # find pairs or more for walls
-        #     for j in range(i + 1, len(self.trackers)):
-        #         t2 = self.trackers[j]
-        #         dx = float(t.state[0, 0]) - float(t2.state[0, 0])
-        #         dy = float(t.state[1, 0]) - float(t2.state[1, 0])
-        #         dist = math.sqrt(dx*dx + dy*dy)
-        #         pairs.append((t, t2, dist, dx, dy))
-
-        # for (t1, t2, dist, dx, dy) in pairs:
-        #     if t1.engagement == 'high' and t2.engagement == 'high':
-        #         wall_m = Marker()
-        #         wall_m.header.frame_id = self.target_frame
-        #         wall_m.header.stamp = self.get_clock().now().to_msg()
-        #         wall_m.ns = "walls"
-        #         wall_m.id = (t1.id + t2.id) & 0xFFFFFF
-        #         wall_m.type = Marker.CUBE
-        #         wall_m.action = Marker.ADD
-
-        #         # Position at midpoint
-        #         wall_m.pose.position.x = (float(t1.state[0, 0]) + float(t2.state[0, 0])) / 2.0
-        #         wall_m.pose.position.y = (float(t1.state[1, 0]) + float(t2.state[1, 0])) / 2.0
-        #         wall_m.pose.position.z = 0.9
-
-        #         # Calculate orientation, angle between the two trackers
-        #         angle = math.atan2(dy, dx)
-
-        #         # Covert angle to quaternion
-        #         wall_m.pose.orientation.z = math.sin(angle / 2.0)
-        #         wall_m.pose.orientation.w = math.cos(angle / 2.0)
-
-        #         wall_m.scale.x = dist # length of the wall
-        #         wall_m.scale.y = 0.2 # thickness of the wall
-        #         wall_m.scale.z = 1.8 # height of the wall
-        #         wall_m.color.r = 0.0; wall_m.color.g = 0.0; wall_m.color.b = 1.0; wall_m.color.a = 0.5
-        #         marker_array.markers.append(wall_m)
-        #     else:
-        #         continue
-            
-
-        #     steps = int(dist / 0.1)
-        #     for s in range(steps):
-        #         # r 
-        #         r = s / float(steps)
-        #         px = (1-r)*float(t1.state[0, 0]) + r*float(t2.state[0, 0])
-        #         py = (1-r)*float(t1.state[1, 0]) + r*float(t2.state[1, 0])
-        #         self.add_cylinder_points(cloud_points, px, py, 0.1)
-
-        # self.marker_pub.publish(marker_array)
-        # if cloud_points: self.publish_cloud(b''.join(cloud_points), len(cloud_points))
-        # else: self.publish_cloud(b'', 0)
 
 
     def draw_wall(self, marker_array, cloud_points, t1, t2, dx, dy, color, thickness=0.2, is_frustum=False):
@@ -440,14 +405,11 @@ class SocialNavigator(Node):
         wall_m.id = (t1.id + (t2.id if t2 else 999)) & 0xFFFFFF
         wall_m.type = Marker.CUBE; wall_m.action = Marker.ADD
 
-        if is_frustum:
-            wall_m.pose.position.x = float(t1.state[0, 0]) + (dx / 2.0)
-            wall_m.pose.position.y = float(t1.state[1, 0]) + (dy / 2.0)
-            dist = math.sqrt(dx*dx + dy*dy)
-        else:
-            wall_m.pose.position.x = float(t1.state[0, 0]) + (dx / 2.0)
-            wall_m.pose.position.y = float(t1.state[1, 0]) + (dy / 2.0)
-            dist = math.sqrt(dx*dx + dy*dy)
+        wall_m.pose.position.x = float(t1.state[0, 0]) + (dx / 2.0)
+        wall_m.pose.position.y = float(t1.state[1, 0]) + (dy / 2.0)
+        wall_m.pose.position.z = 0.9 
+        
+        dist = math.sqrt(dx*dx + dy*dy)
 
         angle = math.atan2(dy, dx)
         wall_m.pose.orientation.z = math.sin(angle / 2.0)
@@ -460,13 +422,14 @@ class SocialNavigator(Node):
         wall_m.color.a = 0.5
         marker_array.markers.append(wall_m)
 
-        steps = int(dist / 0.1)
-        for s in range(steps):
-            r = s / float(steps)
-            px = float(t1.state[0, 0]) + (r * dx)
-            py = float(t1.state[1, 0]) + (r * dy)
-            # Make pointcloud width match visual thickness
-            self.add_cylinder_points(cloud_points, px, py, thickness / 2.0)
+        # Only generate obstacle points if the cloud_points list is provided (i.e., for blocked pairs)
+        if cloud_points is not None:
+            steps = int(dist / 0.1)
+            for s in range(steps):
+                r = s / float(steps)
+                px = float(t1.state[0, 0]) + (r * dx)
+                py = float(t1.state[1, 0]) + (r * dy)
+                self.add_cylinder_points(cloud_points, px, py, thickness / 2.0)
 
 
 
