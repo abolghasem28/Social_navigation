@@ -6,7 +6,7 @@ NODE 1: YOLOv8-Pose Detector (Depth Image Version)
 2. YOLOv8-Pose: Finds perfect full-body bounding boxes AND skeletal joints.
 3. Depth Lookup: Reads the exact distance Z from the chest (u,v).
 4. Deprojection: Calculates real world X, Y using Camera Math.
-5. Publishes: Real 3D coordinates to /detected_humans and perfect boxes to /annotated_image.
+5. Publishes: Real 3D coordinates to /detected_humans and boxes to /annotated_image.
 
 Author: Abolghasem Esmaeily
 """
@@ -159,7 +159,7 @@ class YOLOPoseDetector(Node):
                 cv2.putText(annotated_cv, label, (x_min, y_min - 5), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 0), 1)
 
                 # Depth lookup (Exact same math as before)
-                z_raw_mm = 0
+                z_raw_mm = 0.0
                 count = 0
                 for dy in range(-2, 3):
                     for dx in range(-2, 3):

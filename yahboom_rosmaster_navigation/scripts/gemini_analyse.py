@@ -52,7 +52,7 @@ GT_MAPPING = {
 # 2. PROMPTS
 # ==========================================
 PROMPT_ANNOTATED = """
-You are the vision system for a social navigation robot. Look at the humans marked with numbered bounding boxes (ID 1, 2, 3...).
+You are the vision system for a social navigation analyzing a annotated robot. Look at the humans marked with numbered bounding boxes (ID 1, 2, 3...).
 Evaluate every unique pair of humans in the scene for invisible social boundaries.
 
 RULES:
@@ -186,7 +186,7 @@ def plot_roc_auc(dataframe, title_suffix, output_path):
         subset = dataframe[dataframe['Image_Type'] == image_type]
         if subset.empty: continue
         
-        # Hazard Detection: Blocked is the positive class (1)
+        # Social boundary Detection: Blocked is the positive class (1)
         y_true = (subset['True_Decision'] == 'Blocked').astype(int)
         y_prob = 1.0 - subset['Predicted_Cross_Prob']
         
@@ -199,9 +199,9 @@ def plot_roc_auc(dataframe, title_suffix, output_path):
     plt.plot([0, 1], [0, 1], color='gray', lw=1, linestyle='--')
     plt.xlim([0.0, 1.0])
     plt.ylim([0.0, 1.05])
-    plt.xlabel('False Positive Rate (Safe classified as Hazard)', fontsize=12)
-    plt.ylabel('True Positive Rate (Hazard correctly detected)', fontsize=12)
-    plt.title(f'ROC Curve: Hazard Detection ({title_suffix})', fontsize=16, fontweight='bold', pad=15)
+    plt.xlabel('False Positive Rate (Safe classified as Social boundary)', fontsize=12)
+    plt.ylabel('True Positive Rate (Social boundary correctly detected)', fontsize=12)
+    plt.title(f'ROC Curve: Social boundary Detection ({title_suffix})', fontsize=16, fontweight='bold', pad=15)
     plt.legend(loc="lower right", fontsize=12)
     plt.tight_layout()
     plt.savefig(output_path, dpi=300)
@@ -241,7 +241,7 @@ def plot_calibration_and_brier(dataframe, title_suffix, output_path):
         subset = dataframe[dataframe['Image_Type'] == image_type]
         if subset.empty: continue
         
-        # Hazard Detection: Blocked is the positive class (1)
+        # Social boundary Detection: Blocked is the positive class (1)
         y_true = (subset['True_Decision'] == 'Blocked').astype(int)
         y_prob = 1.0 - subset['Predicted_Cross_Prob']
         
@@ -251,8 +251,8 @@ def plot_calibration_and_brier(dataframe, title_suffix, output_path):
                  label=f'{image_type} (Brier = {brier:.3f})')
 
     plt.plot([0, 1], [0, 1], linestyle='--', color='gray', label='Perfect Calibration')
-    plt.xlabel('Mean Predicted Hazard Probability', fontsize=12)
-    plt.ylabel('Fraction of Actual Hazards', fontsize=12)
+    plt.xlabel('Mean Predicted Social boundary Probability', fontsize=12)
+    plt.ylabel('Fraction of Actual Social boundarys', fontsize=12)
     plt.title(f'Calibration Curve & Reliability ({title_suffix})', fontsize=16, fontweight='bold', pad=15)
     plt.legend(loc="upper left", fontsize=12)
     plt.tight_layout()
@@ -363,7 +363,7 @@ def run_evaluation():
                         "Image_Type": image_type,
                         "Pair": str(link.get("pair", [])), 
                         "Predicted_Engagement": str(raw_eng).lower(),
-                        "Predicted_Cross_Prob": raw_cross,
+                        "Predicted_Crossbility": raw_cross,
                         "Reason": str(link.get("reason", ""))
                     })
 
@@ -371,7 +371,7 @@ def run_evaluation():
                 
         except Exception as e:
             print(f"     [FAILED] Error on {base_filename}: {e}")
-            results_list.append({"Filename": base_filename, "Image_Type": "ERROR", "Predicted_Cross_Prob": -1.0})
+            results_list.append({"Filename": base_filename, "Image_Type": "ERROR", "Predicted_Crossbility": -1.0})
 
     if results_list:
         df = pd.DataFrame(results_list)
@@ -384,13 +384,13 @@ def run_evaluation():
         df_clean['Scenario'] = df_clean['Filename'].apply(lambda x: x.split('_')[0].lower())
         df_clean['True_Engagement'] = df_clean['Scenario'].map(lambda x: GT_MAPPING.get(x, {}).get('engagement', 'low'))
         df_clean['True_Decision'] = df_clean['Scenario'].map(lambda x: GT_MAPPING.get(x, {}).get('decision', 'Open'))
-        df_clean['Predicted_Decision'] = df_clean['Predicted_Cross_Prob'].apply(lambda x: 'Blocked' if x < 0.5 else 'Open')
+        df_clean['Predicted_Decision'] = df_clean['Predicted_Crossbility'].apply(lambda x: 'Blocked' if x < 0.5 else 'Open')
 
         # Group by the image and calculate min, mean, and 25th percentile
         scene_df = df_clean.groupby(['Filename', 'Image_Type', 'Scenario', 'True_Engagement', 'True_Decision']).agg(
-            Min_Cross_Prob=('Predicted_Cross_Prob', 'min'),
-            Mean_Cross_Prob=('Predicted_Cross_Prob', 'mean'),
-            Q25_Cross_Prob=('Predicted_Cross_Prob', lambda x: x.quantile(0.25))
+            Min_Crossbility=('Predicted_Crossbility', 'min'),
+            Mean_Crossbility=('Predicted_Crossbility', 'mean'),
+            Q25_Crossbility=('Predicted_Crossbility', lambda x: x.quantile(0.25))
         ).reset_index()
         
         # Use Q25 for the final prediction to avoid the single-hallucination minimum trap
