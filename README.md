@@ -16,7 +16,7 @@
 
 > [**Open Interactive Architecture Diagram**](https://abolghasem28.github.io/Social_navigation/architecture.html) — click any node for technical details
 
-![Architecture Diagram](docs/architecture_diagram.png)
+![Architecture Diagram](architecture_diagram_demo.png)
 
 ---
 
