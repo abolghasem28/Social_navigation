@@ -15,14 +15,15 @@ genai.configure(api_key=GEMINI_API_KEY)
 model = genai.GenerativeModel('gemini-2.0-flash')
 
 IMAGE_FOLDER = "/home/aesmaeily/ros2_ws/src/yahboom_rosmaster/dataset_images/generate_labels/eval_test"
-OUTPUT_CSV = "/home/aesmaeily/ros2_ws/src/yahboom_rosmaster/dataset_images/generate_labels/eval_test/VLM_predictions.csv"
+OUTPUT_CSV = "/home/aesmaeily/ros2_ws/src/yahboom_rosmaster/dataset_images/generate_labels/eval_test/vlm_csvs/VLM_predictions.csv"
 
 # ==========================================
 # 2. PROMPTS
 # ==========================================
 PROMPT_ANNOTATED = """
 You are the vision system for a social navigation robot. Look at the humans marked with numbered bounding boxes.
-Evaluate the spatial path between every unique pair of humans in the scene for an active social boundary.
+The image has bounding boxes that identify people with IDs starting from 1.
+Evaluate every unique pair of humans in the scene for invisible social boundaries.
 
 RULES:
 - A social boundary exists if the two individuals are actively interacting (e.g., conversation, shared task, photography).
@@ -32,32 +33,33 @@ RULES:
 Return a strict JSON object with one array named "social_links". For each pair, provide:
 1. "pair": A list of exactly two human IDs in ascending order (e.g., [1, 2]).
 2. "engagement": ["low", "medium", "high"].
-3. "robot_can_cross": Float probability (0.0 to 1.0). 0.0 = social boundary is completely blocking the path, 1.0 = path is completely open/safe.
+3. "robot_can_cross": Float probability (0.0 to 1.0). 0.0 = absolutely cannot cross, 1.0 = completely safe.
 4. "reason": One short sentence explaining why.
 """
 
 PROMPT_RAW = """
-You are the vision system for a social navigation robot analyzing a raw, unmarked camera image.
+You are the vision system for a social navigation robot analyzing a camera image.
 
 First, silently identify the humans from LEFT to RIGHT. Assign them IDs starting from 1 (the leftmost person is ID 1, next is 2, etc.).
-Evaluate the spatial path between every unique pair of humans in the scene for an active social boundary.
+Evaluate every unique pair of humans in the scene for invisible social boundaries.
 
 RULES:
 - A social boundary exists if the two individuals are actively interacting (e.g., conversation, shared task, photography).
 - If there is 0 or 1 person in the image, return an empty array: {"social_links": []}
 - Evaluate every single unique combination of IDs as a separate pair.
 
+
 Return a strict JSON object with one array named "social_links". For each pair, provide:
-1. "pair": A list of exactly two human IDs in ascending order (e.g., [1, 2]).
+1. "pair": A list of exactly two human IDs in ascending order (e.g., [1, 2]).  0.0 = absolutely cannot cross, 1.0 = completely safe.
 2. "engagement": ["low", "medium", "high"].
-3. "robot_can_cross": Float probability (0.0 to 1.0). 0.0 = social boundary is completely blocking the path, 1.0 = path is completely open/safe.
+3. "robot_can_cross": Float probability (0.0 to 1.0).  0.0 = absolutely cannot cross, 1.0 = completely safe.
 4. "reason": One short sentence explaining why.
 """
 
 PROMPT_DEPTH = """
 You are the vision system for a social navigation robot analyzing a depth map.
-First, silently identify the distinct human silhouettes from LEFT to RIGHT. Assign them IDs starting from 1 (the leftmost person is ID 1).
-Evaluate the spatial path between every unique pair of humans in the scene for an active social boundary.
+First, identify the distinct human silhouettes from LEFT to RIGHT. Assign them IDs starting from 1 (the leftmost person is ID 1).
+Evaluate every unique pair of humans in the scene for invisible social boundaries.
 
 RULES:
 - A social boundary exists if the spatial orientation and proximity suggest the two individuals are interacting.
@@ -67,7 +69,7 @@ RULES:
 Return a strict JSON object with one array named "social_links". For each pair, provide:
 1. "pair": A list of exactly two human IDs in ascending order (e.g., [1, 2]).
 2. "engagement": ["low", "medium", "high"].
-3. "robot_can_cross": Float probability (0.0 to 1.0). 0.0 = social boundary is completely blocking the path, 1.0 = path is completely open/safe.
+3. "robot_can_cross": Float probability (0.0 to 1.0).  0.0 = absolutely cannot cross, 1.0 = completely safe.
 4. "reason": One short sentence explaining why.
 """
 

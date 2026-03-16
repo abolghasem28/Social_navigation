@@ -32,7 +32,7 @@ class DatasetLogger(Node):
     def __init__(self):
         super().__init__('dataset_logger')
         
-        self.output_dir = "/home/aesmaeily/ros2_ws/src/yahboom_rosmaster/dataset_images"
+        self.output_dir = "/home/aesmaeily/ros2_ws/src/yahboom_rosmaster/dataset_images/dev_set"
         if not os.path.exists(self.output_dir):
             os.makedirs(self.output_dir)
             

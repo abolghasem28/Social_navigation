@@ -211,7 +211,7 @@ local_costmap:
           marking: True
           data_type: "LaserScan"
 
-        social_obstacles:  # ← ADD THIS ENTIRE BLOCK
+        social_obstacles:  # ← ADD THIS Part to listine to social obstacles
           topic: /social_obstacles
           data_type: PointCloud2
           marking: true

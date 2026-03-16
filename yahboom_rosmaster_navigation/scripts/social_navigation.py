@@ -60,10 +60,10 @@ class HumanTracker:
         #self.R = np.eye(2) * 0.5  
 
         # For fast moving humans, we can set a higher velocity to be more responsive, like below.
-        self.Q = np.diag([0.2, 0.2, 0.5, 0.5])
+        self.Q = np.diag([0.05, 0.05, 0.1, 0.1])
          
         # Low Measurement Noise: Trust more the camera between 0.1-0.5, Faster movement
-        self.R = np.eye(2) * 0.05
+        self.R = np.eye(2) * 0.5
 
         self.z = z
         self.social_edges = {}

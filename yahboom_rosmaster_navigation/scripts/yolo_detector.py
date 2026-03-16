@@ -8,6 +8,15 @@ NODE 1: YOLOv8-Pose Detector (Depth Image Version)
 4. Deprojection: Calculates real world X, Y using Camera Math.
 5. Publishes: Real 3D coordinates to /detected_humans and boxes to /annotated_image.
 
+0. SETUP:
+Activate conda environment
+
+In terminal 1:
+ros2 launch realsense2_camera rs_launch.py pointcloud.enable:=true align_depth.enable:=true
+
+In terminal 2:
+python3 /home/aesmaeily/ros2_ws/src/yahboom_rosmaster/yahboom_rosmaster_navigation/scripts/yolo_detector.py
+
 Author: Abolghasem Esmaeily
 """
 

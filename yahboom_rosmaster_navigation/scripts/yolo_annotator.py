@@ -5,7 +5,7 @@ from ultralytics import YOLO
 
 # 1. CONFIGURATION
 # Point this to where your dataset_logger.py saved the raw images
-DATASET_DIR = "/home/aesmaeily/ros2_ws/src/yahboom_rosmaster/dataset_images"
+DATASET_DIR = "/home/aesmaeily/ros2_ws/src/yahboom_rosmaster/dataset_images/dev_set"
 
 # Load YOLOv8 (The 'n' stands for nano - it's fast and will download automatically the first time)
 print("Loading YOLO11-Pose Model...")
