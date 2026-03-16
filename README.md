@@ -14,7 +14,7 @@
 
 ## System Architecture
 
-> [**Open Interactive Architecture Diagram**](docs/architecture.html) — click any node for technical details
+> [**Open Interactive Architecture Diagram**](https://abolghasem28.github.io/Social_navigation/architecture.html) — click any node for technical details
 
 ![Architecture Diagram](docs/architecture_diagram.png)
 
