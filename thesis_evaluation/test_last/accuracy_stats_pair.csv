@@ -1,0 +1,25 @@
+Image_Type,Category,Total_Evaluated,Correct_Predictions,Accuracy_Percentage
+Raw,OVERALL_NAVIGATION_DECISION,646,383,59.3
+Raw,Scenario: Conversation,70,48,68.6
+Raw,Scenario: Ignoring,46,30,65.2
+Raw,Scenario: Photography,31,23,74.2
+Raw,Scenario: Playing,127,114,89.8
+Raw,Scenario: Presenting,194,84,43.3
+Raw,Scenario: Proxemics,64,30,46.9
+Raw,Scenario: Sharedtask,114,54,47.4
+Annotated,OVERALL_NAVIGATION_DECISION,683,325,47.6
+Annotated,Scenario: Conversation,83,27,32.5
+Annotated,Scenario: Ignoring,60,49,81.7
+Annotated,Scenario: Photography,31,15,48.4
+Annotated,Scenario: Playing,125,87,69.6
+Annotated,Scenario: Presenting,184,61,33.2
+Annotated,Scenario: Proxemics,62,36,58.1
+Annotated,Scenario: Sharedtask,138,50,36.2
+Depth,OVERALL_NAVIGATION_DECISION,354,236,66.7
+Depth,Scenario: Conversation,36,35,97.2
+Depth,Scenario: Ignoring,33,17,51.5
+Depth,Scenario: Photography,21,16,76.2
+Depth,Scenario: Playing,100,73,73.0
+Depth,Scenario: Presenting,92,61,66.3
+Depth,Scenario: Proxemics,21,6,28.6
+Depth,Scenario: Sharedtask,51,28,54.9
