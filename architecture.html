@@ -206,7 +206,6 @@ const details = {
     content: [
       'Publishes raw RGB frames for visual analysis',
       'Mounted on robot via static TF transform',
-      'Resolution optimized to 640×480 @ 30Hz, 90° FOV',
       'Provides both color and depth streams',
     ]
   },
@@ -216,7 +215,7 @@ const details = {
       'Runs Yolo11n-pose for person bounding-box detection and extracts shoulder landmarks for robust localization',
       'Assigns persistent IDs via left-to-right spatial ordering',
       'Publishes PoseArray (3D positions) + annotated image with drawn bounding boxes & IDs',
-      'Depth fallback: if depth cloud fails, uses pinhole camera model + bbox geometry',
+      '⚠ Limitation: ID assignment can swap if two people cross paths closely',
     ]
   },
   ekf: {
@@ -248,8 +247,6 @@ const details = {
       'Each human → cylinder of points (r=0.25m, h=1.4m, 40 points)',
       'Blocked pairs (can_cross < 0.5) → red wall + dense obstacle points between humans',
       'Open pairs (can_cross ≥ 0.5) → green line only, NO obstacle points',
-      '⚠ Nav2 issue: with clearing:false, costmap cells persist even after node stops publishing',
-      '⚠ Fix needed: dedicated costmap layer plugin with cell timeout',
     ]
   },
   nav2: {
@@ -258,9 +255,7 @@ const details = {
       'Subscribes to /social_obstacles as observation source in ObstacleLayer',
       'No LiDAR — system is purely vision-based (RGB-D only)',
       'Global planner routes around marked lethal cells from social obstacle PointCloud',
-      '⚠ Known limitation: cannot add observation sources at runtime (config-only at startup)',
       '⚠ On Lio: requires company-side access to inject social_obstacles into dynamic config generation',
-      '⚠ Recommended: separate costmap layer plugin with built-in cell timeout',
     ]
   }
 };
