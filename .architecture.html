@@ -1,0 +1,300 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Social Navigation System — Architecture</title>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { background: #0a0e17; font-family: 'JetBrains Mono', monospace; padding: 24px 16px; min-height: 100vh; }
+  .container { max-width: 980px; margin: 0 auto; }
+  h1 { color: #e2e8f0; font-size: 18px; font-weight: 700; text-align: center; letter-spacing: 1px; }
+  .subtitle { color: #64748b; font-size: 11px; text-align: center; margin-top: 6px; }
+  svg { width: 100%; margin-top: 16px; }
+  svg text { user-select: none; }
+  .node-group { cursor: pointer; }
+  .node-group:hover rect:first-of-type { filter: brightness(1.2); }
+ 
+  .detail-panel {
+    background: #111827; border: 1px solid #1e293b; border-radius: 8px;
+    padding: 16px 20px; margin-top: 12px;
+  }
+  .detail-header { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; }
+  .detail-bar { width: 4px; height: 20px; border-radius: 2px; }
+  .detail-title { color: #e2e8f0; font-size: 14px; font-weight: 700; }
+  .detail-lines { display: flex; flex-direction: column; gap: 6px; }
+  .detail-line { display: flex; gap: 8px; align-items: flex-start; }
+  .detail-bullet { font-size: 11px; flex-shrink: 0; }
+  .detail-text { font-size: 11.5px; line-height: 1.5; }
+  .normal-bullet { color: #64748b; }
+  .normal-text { color: #94a3b8; }
+  .warn-bullet { color: #f59e0b; }
+  .warn-text { color: #f59e0b; }
+ 
+  .legend { display: flex; gap: 16px; justify-content: center; margin-top: 14px; flex-wrap: wrap; }
+  .legend-item { display: flex; align-items: center; gap: 5px; }
+  .legend-dot { width: 8px; height: 8px; border-radius: 50%; }
+  .legend-label { color: #94a3b8; font-size: 10px; }
+</style>
+</head>
+<body>
+<div class="container">
+  <h1>SOCIAL NAVIGATION SYSTEM — DATA FLOW</h1>
+  <p class="subtitle">Click any node for details · Abolghasem Esmaeily · Idiap / KTH</p>
+ 
+  <svg viewBox="0 0 920 520" xmlns="http://www.w3.org/2000/svg">
+    <!-- SECTIONS -->
+    <rect x="20" y="15" width="200" height="490" rx="6" fill="none" stroke="#3b82f6" stroke-width="1" stroke-dasharray="4,3" opacity="0.25"/>
+    <text x="28" y="11" fill="#3b82f6" font-size="9" font-weight="600" font-family="'JetBrains Mono', monospace" opacity="0.6">PERCEPTION</text>
+ 
+    <rect x="240" y="15" width="240" height="490" rx="6" fill="none" stroke="#10b981" stroke-width="1" stroke-dasharray="4,3" opacity="0.25"/>
+    <text x="248" y="11" fill="#10b981" font-size="9" font-weight="600" font-family="'JetBrains Mono', monospace" opacity="0.6">TRACKING &amp; REASONING</text>
+ 
+    <rect x="500" y="15" width="200" height="490" rx="6" fill="none" stroke="#f59e0b" stroke-width="1" stroke-dasharray="4,3" opacity="0.25"/>
+    <text x="508" y="11" fill="#f59e0b" font-size="9" font-weight="600" font-family="'JetBrains Mono', monospace" opacity="0.6">OUTPUT GENERATION</text>
+ 
+    <rect x="720" y="15" width="180" height="490" rx="6" fill="none" stroke="#ef4444" stroke-width="1" stroke-dasharray="4,3" opacity="0.25"/>
+    <text x="728" y="11" fill="#ef4444" font-size="9" font-weight="600" font-family="'JetBrains Mono', monospace" opacity="0.6">NAVIGATION</text>
+ 
+    <!-- === NODES === -->
+ 
+    <!-- Camera -->
+    <g class="node-group" onclick="select('camera')">
+      <rect id="bg-camera" x="55" y="40" width="140" height="65" rx="8" fill="#111827" stroke="#1e293b" stroke-width="1"/>
+      <rect x="55" y="40" width="140" height="4" rx="2" fill="#06b6d4"/>
+      <text x="125" y="82" text-anchor="middle" fill="#e2e8f0" font-size="12" font-weight="600" font-family="'JetBrains Mono', monospace">RGB-D Camera</text>
+      <text x="125" y="97" text-anchor="middle" fill="#64748b" font-size="9" font-family="'JetBrains Mono', monospace">Hardware Sensor</text>
+    </g>
+ 
+    <!-- YOLO -->
+    <g class="node-group" onclick="select('yolo')">
+      <rect id="bg-yolo" x="40" y="180" width="170" height="70" rx="8" fill="#111827" stroke="#1e293b" stroke-width="1"/>
+      <rect x="40" y="180" width="170" height="4" rx="2" fill="#3b82f6"/>
+      <text x="125" y="204" text-anchor="middle" fill="#3b82f6" font-size="11" font-weight="700" font-family="'JetBrains Mono', monospace">🔍</text>
+      <text x="125" y="222" text-anchor="middle" fill="#e2e8f0" font-size="12" font-weight="600" font-family="'JetBrains Mono', monospace">YOLO </text>
+      <text x="125" y="237" text-anchor="middle" fill="#64748b" font-size="9" font-family="'JetBrains Mono', monospace">Node 1 — Detection &amp; ID</text>
+    </g>
+ 
+    <!-- EKF -->
+    <g class="node-group" onclick="select('ekf')">
+      <rect id="bg-ekf" x="270" y="155" width="180" height="80" rx="8" fill="#111827" stroke="#1e293b" stroke-width="1"/>
+      <rect x="270" y="155" width="180" height="4" rx="2" fill="#10b981"/>
+      <text x="360" y="179" text-anchor="middle" fill="#10b981" font-size="11" font-weight="700" font-family="'JetBrains Mono', monospace">📐</text>
+      <text x="360" y="197" text-anchor="middle" fill="#e2e8f0" font-size="12" font-weight="600" font-family="'JetBrains Mono', monospace">Kalman Filter Tracker</text>
+      <text x="360" y="212" text-anchor="middle" fill="#64748b" font-size="9" font-family="'JetBrains Mono', monospace">Identity Persistence Engine</text>
+    </g>
+ 
+    <!-- Gemini -->
+    <g class="node-group" onclick="select('gemini')">
+      <rect id="bg-gemini" x="270" y="320" width="180" height="75" rx="8" fill="#111827" stroke="#1e293b" stroke-width="1"/>
+      <rect x="270" y="320" width="180" height="4" rx="2" fill="#8b5cf6"/>
+      <text x="360" y="344" text-anchor="middle" fill="#8b5cf6" font-size="11" font-weight="700" font-family="'JetBrains Mono', monospace">🧠</text>
+      <text x="360" y="362" text-anchor="middle" fill="#e2e8f0" font-size="12" font-weight="600" font-family="'JetBrains Mono', monospace">Gemini Flash 2.0</text>
+      <text x="360" y="377" text-anchor="middle" fill="#64748b" font-size="9" font-family="'JetBrains Mono', monospace">Social Scene Analysis</text>
+    </g>
+ 
+    <!-- Costmap Gen -->
+    <g class="node-group" onclick="select('costmap')">
+      <rect id="bg-costmap" x="525" y="200" width="155" height="75" rx="8" fill="#111827" stroke="#1e293b" stroke-width="1"/>
+      <rect x="525" y="200" width="155" height="4" rx="2" fill="#f59e0b"/>
+      <text x="602" y="224" text-anchor="middle" fill="#f59e0b" font-size="11" font-weight="700" font-family="'JetBrains Mono', monospace">🗺️</text>
+      <text x="602" y="242" text-anchor="middle" fill="#e2e8f0" font-size="12" font-weight="600" font-family="'JetBrains Mono', monospace">Costmap Gen</text>
+      <text x="602" y="257" text-anchor="middle" fill="#64748b" font-size="9" font-family="'JetBrains Mono', monospace">analyse_loop @ 10Hz</text>
+    </g>
+ 
+    <!-- Nav2 -->
+    <g class="node-group" onclick="select('nav2')">
+      <rect id="bg-nav2" x="745" y="200" width="135" height="75" rx="8" fill="#111827" stroke="#1e293b" stroke-width="1"/>
+      <rect x="745" y="200" width="135" height="4" rx="2" fill="#ef4444"/>
+      <text x="812" y="224" text-anchor="middle" fill="#ef4444" font-size="11" font-weight="700" font-family="'JetBrains Mono', monospace">🤖</text>
+      <text x="812" y="242" text-anchor="middle" fill="#e2e8f0" font-size="12" font-weight="600" font-family="'JetBrains Mono', monospace">Nav2 Stack</text>
+      <text x="812" y="257" text-anchor="middle" fill="#64748b" font-size="9" font-family="'JetBrains Mono', monospace">Path Planning</text>
+    </g>
+ 
+    <!-- === ARROWS === -->
+ 
+    <!-- Camera → YOLO -->
+    <path d="M125,105 L125,178" fill="none" stroke="#06b6d4" stroke-width="1.5" opacity="0.7"/>
+    <circle r="3" fill="#06b6d4" opacity="0.9"><animateMotion dur="2s" repeatCount="indefinite" path="M125,105 L125,178"/></circle>
+    <polygon points="125,178 121,170 129,170" fill="#06b6d4" opacity="0.8"/>
+    <rect x="28" y="136" width="130" height="14" rx="3" fill="#0a0e17" opacity="0.9"/>
+    <text x="32" y="146" fill="#06b6d4" font-size="8" font-family="'JetBrains Mono', monospace" font-weight="500">/camera/color/image_raw</text>
+ 
+    <!-- YOLO → KF -->
+    <path d="M210,200 L268,195" fill="none" stroke="#3b82f6" stroke-width="1.5" opacity="0.7"/>
+    <circle r="3" fill="#3b82f6" opacity="0.9"><animateMotion dur="2s" repeatCount="indefinite" path="M210,200 L268,195"/></circle>
+    <polygon points="268,195 260,191 260,199" fill="#3b82f6" opacity="0.8"/>
+    <rect x="210" y="176" width="95" height="14" rx="3" fill="#0a0e17" opacity="0.9"/>
+    <text x="214" y="186" fill="#3b82f6" font-size="8" font-family="'JetBrains Mono', monospace" font-weight="500">/detected_humans</text>
+ 
+    <!-- YOLO → Gemini -->
+    <path d="M210,230 L230,280 L230,350 L268,355" fill="none" stroke="#3b82f6" stroke-width="1.5" opacity="0.7"/>
+    <circle r="3" fill="#3b82f6" opacity="0.9"><animateMotion dur="2s" repeatCount="indefinite" path="M210,230 L230,280 L230,350 L268,355"/></circle>
+    <polygon points="268,355 260,351 260,359" fill="#3b82f6" opacity="0.8"/>
+    <rect x="143" y="291" width="100" height="14" rx="3" fill="#0a0e17" opacity="0.9"/>
+    <text x="147" y="301" fill="#3b82f6" font-size="8" font-family="'JetBrains Mono', monospace" font-weight="500">/annotated_image</text>
+ 
+    <!-- KF → Costmap -->
+    <path d="M450,195 L490,195 L490,230 L523,230" fill="none" stroke="#10b981" stroke-width="1.5" opacity="0.7"/>
+    <circle r="3" fill="#10b981" opacity="0.9"><animateMotion dur="2s" repeatCount="indefinite" path="M450,195 L490,195 L490,230 L523,230"/></circle>
+    <polygon points="523,230 515,226 515,234" fill="#10b981" opacity="0.8"/>
+    <rect x="453" y="201" width="80" height="14" rx="3" fill="#0a0e17" opacity="0.9"/>
+    <text x="457" y="211" fill="#10b981" font-size="8" font-family="'JetBrains Mono', monospace" font-weight="500">self.trackers[]</text>
+ 
+    <!-- Gemini → Costmap -->
+    <path d="M450,355 L480,355 L480,260 L523,260" fill="none" stroke="#8b5cf6" stroke-width="1.5" opacity="0.7"/>
+    <circle r="3" fill="#8b5cf6" opacity="0.9"><animateMotion dur="2s" repeatCount="indefinite" path="M450,355 L480,355 L480,260 L523,260"/></circle>
+    <polygon points="523,260 515,256 515,264" fill="#8b5cf6" opacity="0.8"/>
+    <rect x="453" y="301" width="82" height="14" rx="3" fill="#0a0e17" opacity="0.9"/>
+    <text x="457" y="311" fill="#8b5cf6" font-size="8" font-family="'JetBrains Mono', monospace" font-weight="500">.social_edges{}</text>
+ 
+    <!-- Costmap → Nav2 -->
+    <path d="M680,237 L743,237" fill="none" stroke="#f59e0b" stroke-width="1.5" opacity="0.7"/>
+    <circle r="3" fill="#f59e0b" opacity="0.9"><animateMotion dur="2s" repeatCount="indefinite" path="M680,237 L743,237"/></circle>
+    <polygon points="743,237 735,233 735,241" fill="#f59e0b" opacity="0.8"/>
+    <rect x="683" y="216" width="90" height="14" rx="3" fill="#0a0e17" opacity="0.9"/>
+    <text x="687" y="226" fill="#f59e0b" font-size="8" font-family="'JetBrains Mono', monospace" font-weight="500">/social_obstacles</text>
+ 
+    <!-- Topic Badges -->
+    <rect x="42" y="270" width="66" height="18" rx="9" fill="#0a0e17" stroke="#3b82f6" stroke-width="1" opacity="0.9"/>
+    <text x="48" y="282" fill="#3b82f6" font-size="8.5" font-family="'JetBrains Mono', monospace" font-weight="500">PoseArray</text>
+ 
+    <rect x="42" y="292" width="108" height="18" rx="9" fill="#0a0e17" stroke="#3b82f6" stroke-width="1" opacity="0.9"/>
+    <text x="48" y="304" fill="#3b82f6" font-size="8.5" font-family="'JetBrains Mono', monospace" font-weight="500">sensor_msgs/Image</text>
+ 
+    <rect x="530" y="162" width="78" height="18" rx="9" fill="#0a0e17" stroke="#f59e0b" stroke-width="1" opacity="0.9"/>
+    <text x="536" y="174" fill="#f59e0b" font-size="8.5" font-family="'JetBrains Mono', monospace" font-weight="500">PointCloud2</text>
+ 
+    <!-- KF Detail Inset -->
+    <rect x="255" y="430" width="410" height="65" rx="6" fill="#111827" stroke="#10b981" stroke-width="1" opacity="0.8"/>
+    <text x="265" y="448" fill="#10b981" font-size="9" font-weight="700" font-family="'JetBrains Mono', monospace">KF DATA ASSOCIATION — WHO IS WHO</text>
+    <text x="265" y="462" fill="#94a3b8" font-size="8" font-family="'JetBrains Mono', monospace">1. Predict all trackers → 2. For each detection, find nearest tracker (&lt;5m gate)</text>
+    <text x="265" y="474" fill="#94a3b8" font-size="8" font-family="'JetBrains Mono', monospace">3. Update matched tracker with Kalman gain → 4. Unmatched detection → new tracker</text>
+    <text x="265" y="486" fill="#94a3b8" font-size="8" font-family="'JetBrains Mono', monospace">5. Trackers with no update for 3.0s → removed (TTL expiry)</text>
+  </svg>
+ 
+  <!-- Detail Panel -->
+  <div class="detail-panel">
+    <div class="detail-header">
+      <div class="detail-bar" id="detail-bar"></div>
+      <span class="detail-title" id="detail-title"></span>
+    </div>
+    <div class="detail-lines" id="detail-lines"></div>
+  </div>
+ 
+  <!-- Legend -->
+  <div class="legend">
+    <div class="legend-item"><div class="legend-dot" style="background:#06b6d4"></div><span class="legend-label">Sensor Input</span></div>
+    <div class="legend-item"><div class="legend-dot" style="background:#3b82f6"></div><span class="legend-label">Detection</span></div>
+    <div class="legend-item"><div class="legend-dot" style="background:#10b981"></div><span class="legend-label">Tracking</span></div>
+    <div class="legend-item"><div class="legend-dot" style="background:#8b5cf6"></div><span class="legend-label">VLM Reasoning</span></div>
+    <div class="legend-item"><div class="legend-dot" style="background:#f59e0b"></div><span class="legend-label">Output</span></div>
+    <div class="legend-item"><div class="legend-dot" style="background:#ef4444"></div><span class="legend-label">Navigation</span></div>
+  </div>
+</div>
+ 
+<script>
+const nodeColors = {
+  camera: '#06b6d4', yolo: '#3b82f6', ekf: '#10b981',
+  gemini: '#8b5cf6', costmap: '#f59e0b', nav2: '#ef4444'
+};
+ 
+const details = {
+  camera: {
+    title: 'RGB-D Camera',
+    content: [
+      'Publishes raw RGB frames for visual analysis',
+      'Mounted on robot via static TF transform',
+      'Resolution optimized to 640×480 @ 30Hz, 90° FOV',
+      'Provides both color and depth streams',
+    ]
+  },
+  yolo: {
+    title: 'YOLO(Node 1)',
+    content: [
+      'Runs Yolo11n-pose for person bounding-box detection and extracts shoulder landmarks for robust localization',
+      'Assigns persistent IDs via left-to-right spatial ordering',
+      'Publishes PoseArray (3D positions) + annotated image with drawn bounding boxes & IDs',
+      'Depth fallback: if depth cloud fails, uses pinhole camera model + bbox geometry',
+    ]
+  },
+  ekf: {
+    title: 'Kalman Filter Tracker (Identity Engine)',
+    content: [
+      'State vector: [x, y, vx, vy] per human',
+      'Nearest-neighbor data association (5m gate) with used-tracker exclusion',
+      'Process noise Q = diag(0.05, 0.05, 0.1, 0.1) — tuned for walking humans',
+      'Measurement noise R = 0.5·I₂ — moderate camera trust',
+      'TTL = 3.0s — tracker removed if no measurement for 3 seconds',
+      'Stability report every 100 frames: compares raw vs filtered σ',
+    ]
+  },
+  gemini: {
+    title: 'Gemini Flash 2.0 (Social Reasoning)',
+    content: [
+      'Receives annotated RGB with bounding boxes + IDs drawn by YOLO',
+      'Runs asynchronously every 2.0s in a separate thread (non-blocking)',
+      'Evaluates pairwise social engagement between all human combinations',
+      'Returns per-pair: engagement level, robot_can_cross probability [0–1], reason',
+      'Groups of 3+ are decomposed into all C(n,2) pairs',
+      'Output stored as bidirectional edges in tracker.social_edges dict',
+    ]
+  },
+  costmap: {
+    title: 'Costmap Generator (analyse_loop @ 10Hz)',
+    content: [
+      'Rebuilds entire PointCloud2 from scratch every 0.1s — no stale data in the node',
+      'Each human → cylinder of points (r=0.25m, h=1.4m, 40 points)',
+      'Blocked pairs (can_cross < 0.5) → red wall + dense obstacle points between humans',
+      'Open pairs (can_cross ≥ 0.5) → green line only, NO obstacle points',
+      '⚠ Nav2 issue: with clearing:false, costmap cells persist even after node stops publishing',
+      '⚠ Fix needed: dedicated costmap layer plugin with cell timeout',
+    ]
+  },
+  nav2: {
+    title: 'Nav2 Stack (Path Planning)',
+    content: [
+      'Subscribes to /social_obstacles as observation source in ObstacleLayer',
+      'No LiDAR — system is purely vision-based (RGB-D only)',
+      'Global planner routes around marked lethal cells from social obstacle PointCloud',
+      '⚠ Known limitation: cannot add observation sources at runtime (config-only at startup)',
+      '⚠ On Lio: requires company-side access to inject social_obstacles into dynamic config generation',
+      '⚠ Recommended: separate costmap layer plugin with built-in cell timeout',
+    ]
+  }
+};
+ 
+let current = 'ekf';
+ 
+function select(key) {
+  current = key;
+  // Reset all node borders
+  Object.keys(nodeColors).forEach(k => {
+    const el = document.getElementById('bg-' + k);
+    if (el) { el.setAttribute('stroke', '#1e293b'); el.setAttribute('stroke-width', '1'); el.setAttribute('fill', '#111827'); }
+  });
+  // Highlight selected
+  const sel = document.getElementById('bg-' + key);
+  if (sel) { sel.setAttribute('stroke', nodeColors[key]); sel.setAttribute('stroke-width', '2'); sel.setAttribute('fill', '#1a2332'); }
+ 
+  // Update detail panel
+  const d = details[key];
+  document.getElementById('detail-bar').style.background = nodeColors[key];
+  document.getElementById('detail-title').textContent = d.title;
+  const container = document.getElementById('detail-lines');
+  container.innerHTML = '';
+  d.content.forEach(line => {
+    const isWarn = line.startsWith('⚠');
+    const div = document.createElement('div');
+    div.className = 'detail-line';
+    div.innerHTML = `<span class="detail-bullet ${isWarn ? 'warn-bullet' : 'normal-bullet'}">${isWarn ? '⚠' : '›'}</span><span class="detail-text ${isWarn ? 'warn-text' : 'normal-text'}">${isWarn ? line.slice(2) : line}</span>`;
+    container.appendChild(div);
+  });
+}
+ 
+// Init
+select('ekf');
+</script>
+</body>
+</html>
