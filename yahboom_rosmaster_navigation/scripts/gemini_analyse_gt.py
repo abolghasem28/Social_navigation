@@ -14,19 +14,34 @@ GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", '')
 genai.configure(api_key=GEMINI_API_KEY)
 model = genai.GenerativeModel('gemini-2.0-flash')
 
-IMAGE_FOLDER = "/home/aesmaeily/ros2_ws/src/yahboom_rosmaster/dataset_images/generate_labels/eval_test"
-OUTPUT_CSV = "/home/aesmaeily/ros2_ws/src/yahboom_rosmaster/dataset_images/generate_labels/eval_test/vlm_csvs/VLM_predictions.csv"
+IMAGE_FOLDER = "/home/aesmaeily/ros2_ws/src/yahboom_rosmaster/dataset_images/dev_set"
+OUTPUT_CSV = "/home/aesmaeily/ros2_ws/src/yahboom_rosmaster/dataset_images/dev_set/dev_csv_results/VLM7_predictions.csv"
 
 # ==========================================
 # 2. PROMPTS
 # ==========================================
 PROMPT_ANNOTATED = """
-You are the vision system for a social navigation robot. Look at the humans marked with numbered bounding boxes.
+You are the vision system for a social navigation robot analyzing humans marked with numbered bounding boxes.
 The image has bounding boxes that identify people with IDs starting from 1.
-Evaluate every unique pair of humans in the scene for invisible social boundaries.
+
+People in the scene may be involved in different types of activity, some proximate (physically 
+close, directly engaging with each other) and some remote (spatially offset but still part of 
+the same shared activity). The robot must not disturb any ongoing activity, regardless of 
+whether the people involved are facing each other or physically close.
+
+STEP 1 — Classify the scene type BEFORE evaluating any pairs:
+- FULL-GROUP: All people share one collective activity. → ALL pairs are Blocked (robot_can_cross ≤ 0.2).
+  Once classified as FULL-GROUP, do NOT re-evaluate individual pairs, lack of direct 
+  face-to-face contact between two specific members does NOT make them Open.
+- PARTIAL-GROUP: Some people share an activity, others do not. Evaluate each pair 
+  individually based on whether they are actively engaged with each other.
+
+STEP 2 — Evaluate every unique pair according to the scene type above.
+Use the spatial arrangement and proximity of bounding boxes to identify group clusters.
 
 RULES:
-- A social boundary exists if the two individuals are actively interacting (e.g., conversation, shared task, photography).
+- A social boundary exists if the two individuals are part of the same ongoing activity,
+  whether they are directly interacting or jointly engaged from a distance.
 - If there is 0 or 1 person in the image, return an empty array: {"social_links": []}
 - Evaluate every single unique combination of IDs as a separate pair (e.g., [1,2], [1,3], [2,3]).
 
@@ -39,20 +54,32 @@ Return a strict JSON object with one array named "social_links". For each pair, 
 
 PROMPT_RAW = """
 You are the vision system for a social navigation robot analyzing a camera image.
+Silently identify the humans from LEFT to RIGHT and assign them IDs starting from 1.
 
-First, silently identify the humans from LEFT to RIGHT. Assign them IDs starting from 1 (the leftmost person is ID 1, next is 2, etc.).
-Evaluate every unique pair of humans in the scene for invisible social boundaries.
+People in the scene may be involved in different types of activity, some proximate (physically 
+close, directly engaging with each other) and some remote (spatially offset but still part of 
+the same shared activity). The robot must not disturb any ongoing activity, regardless of 
+whether the people involved are facing each other or physically close.
+
+STEP 1 — Classify the scene type BEFORE evaluating any pairs:
+- FULL-GROUP: All people share one collective activity. → ALL pairs are Blocked (robot_can_cross ≤ 0.2).
+  Once classified as FULL-GROUP, do NOT re-evaluate individual pairs, lack of direct 
+  face-to-face contact between two specific members does NOT make them Open.
+- PARTIAL-GROUP: Some people share an activity, others do not. Evaluate each pair 
+  individually based on whether they are actively engaged with each other.
+
+STEP 2 — Evaluate every unique pair according to the scene type above.
 
 RULES:
-- A social boundary exists if the two individuals are actively interacting (e.g., conversation, shared task, photography).
+- A social boundary exists if the two individuals are part of the same ongoing activity,
+  whether they are directly interacting or jointly engaged from a distance.
 - If there is 0 or 1 person in the image, return an empty array: {"social_links": []}
 - Evaluate every single unique combination of IDs as a separate pair.
 
-
 Return a strict JSON object with one array named "social_links". For each pair, provide:
-1. "pair": A list of exactly two human IDs in ascending order (e.g., [1, 2]).  0.0 = absolutely cannot cross, 1.0 = completely safe.
+1. "pair": A list of exactly two human IDs in ascending order (e.g., [1, 2]).
 2. "engagement": ["low", "medium", "high"].
-3. "robot_can_cross": Float probability (0.0 to 1.0).  0.0 = absolutely cannot cross, 1.0 = completely safe.
+3. "robot_can_cross": Float probability (0.0 to 1.0). 0.0 = absolutely cannot cross, 1.0 = completely safe.
 4. "reason": One short sentence explaining why.
 """
 
@@ -189,8 +216,9 @@ def run_inference(run_id):
         print(f"--- Iteration {run_id} complete. Saved: {output_file} ---")
 
 if __name__ == "__main__":
-    TOTAL_RUNS = 10
-    for i in range(1, TOTAL_RUNS + 1):
+    TOTAL_RUNS = 1
+    #for i in range(1, TOTAL_RUNS + 1):
+    for i in range(TOTAL_RUNS):
         run_inference(i)
         if i < TOTAL_RUNS:
             print("Cooling down API before next run...")

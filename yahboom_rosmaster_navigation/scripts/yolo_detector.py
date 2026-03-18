@@ -42,7 +42,7 @@ class YOLOPoseDetector(Node):
         # SETUP YOLOv8-Pose
         # The 'n' stands for nano (fastest). It will auto-download 'yolov8n-pose.pt' the first time it runs.
         self.get_logger().info("Loading YOLO11-Pose model...")
-        self.detector = YOLO('yolo11n-pose.pt')
+        self.detector = YOLO('yolo11s-pose.pt')
 
         # TOPICS
         self.rgb_topic = '/camera/camera/color/image_raw'
@@ -115,7 +115,7 @@ class YOLOPoseDetector(Node):
             annotated_cv = cv_img.copy()
 
             # RUN YOLO-POSE INFERENCE
-            results = self.detector(cv_img, verbose=False)
+            results = self.detector(cv_img, conf = 0.60, classes=[0], verbose=False)
             valid_people = []
 
             if len(results) > 0 and results[0].keypoints is not None:
@@ -190,8 +190,11 @@ class YOLOPoseDetector(Node):
                     p.position.x, p.position.y, p.position.z = float(X), float(Y), float(Z)
                     pose_msg.poses.append(p)
 
-            if len(pose_msg.poses) > 0:
-                self.human_pub.publish(pose_msg)
+            #if len(pose_msg.poses) > 0:
+
+            # Now, if 0 people are detected, it publishes an empty PoseArray.
+            # This empty array tells Nav2 to immediately erase the old cylinders!
+            self.human_pub.publish(pose_msg)
             
             annotated_msg = self.bridge.cv2_to_imgmsg(annotated_cv, encoding="bgr8")
             annotated_msg.header = rgb_curr.header

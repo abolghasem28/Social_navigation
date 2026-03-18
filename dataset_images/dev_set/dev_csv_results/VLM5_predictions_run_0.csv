@@ -1,0 +1,154 @@
+Run_ID,Filename,Image_Type,Pair,Predicted_Engagement,Predicted_Crossability,Reason
+0,conversation_1773659674996_raw.jpg,Raw,"[1,2]",high,0.1,People 1 and 2 are engaged in a conversation.
+0,conversation_1773659674996_raw.jpg,Raw,"[1,3]",high,0.1,People 1 and 3 are engaged in a conversation.
+0,conversation_1773659674996_raw.jpg,Raw,"[1,4]",high,0.1,People 1 and 4 are engaged in a conversation.
+0,conversation_1773659674996_raw.jpg,Raw,"[2,3]",high,0.1,People 2 and 3 are engaged in a conversation.
+0,conversation_1773659674996_raw.jpg,Raw,"[2,4]",high,0.1,People 2 and 4 are engaged in a conversation.
+0,conversation_1773659674996_raw.jpg,Raw,"[3,4]",high,0.1,People 3 and 4 are engaged in a conversation.
+0,conversation_1773659674996_annotated.jpg,Annotated,"[1,2]",low,0.6,They are not facing each other and are spatially separated.
+0,conversation_1773659674996_annotated.jpg,Annotated,"[1,3]",low,0.6,They are not facing each other and are spatially separated.
+0,conversation_1773659674996_annotated.jpg,Annotated,"[1,4]",low,0.6,They are not facing each other and are spatially separated.
+0,conversation_1773659674996_annotated.jpg,Annotated,"[2,3]",high,0.1,They are standing close and likely interacting.
+0,conversation_1773659674996_annotated.jpg,Annotated,"[2,4]",high,0.1,They are standing close and likely interacting.
+0,conversation_1773659674996_annotated.jpg,Annotated,"[3,4]",high,0.1,They are standing close and likely interacting.
+0,conversation_1773659674996_depth.png,Depth,"[1,2]",medium,0.3,"The two people are close and facing each other, suggesting a conversation."
+0,conversation_1773659727488_raw.jpg,Raw,"[1,2]",high,0.1,The two people are facing each other and appear to be in conversation.
+0,conversation_1773659727488_annotated.jpg,Annotated,"[1,2]",high,0.1,The two people are facing each other and appear to be in conversation.
+0,ignoring_1773659774396_raw.jpg,Raw,"[1,2]",low,0.7,The two people are not interacting.
+0,ignoring_1773659774396_raw.jpg,Raw,"[1,3]",low,0.7,The two people are not interacting.
+0,ignoring_1773659774396_raw.jpg,Raw,"[1,4]",low,0.7,The two people are not interacting.
+0,ignoring_1773659774396_raw.jpg,Raw,"[2,3]",low,0.7,The two people are not interacting.
+0,ignoring_1773659774396_raw.jpg,Raw,"[2,4]",low,0.7,The two people are not interacting.
+0,ignoring_1773659774396_raw.jpg,Raw,"[3,4]",low,0.7,The two people are not interacting.
+0,ignoring_1773659774396_annotated.jpg,Annotated,"[1,2]",low,0.7,IDs 1 and 2 are not interacting.
+0,ignoring_1773659774396_annotated.jpg,Annotated,"[1,3]",low,0.7,IDs 1 and 3 are not interacting.
+0,ignoring_1773659774396_annotated.jpg,Annotated,"[1,4]",low,0.7,IDs 1 and 4 are not interacting.
+0,ignoring_1773659774396_annotated.jpg,Annotated,"[2,3]",low,0.7,IDs 2 and 3 are not interacting.
+0,ignoring_1773659774396_annotated.jpg,Annotated,"[2,4]",low,0.7,IDs 2 and 4 are not interacting.
+0,ignoring_1773659774396_annotated.jpg,Annotated,"[3,4]",low,0.7,IDs 3 and 4 are not interacting.
+0,ignoring_1773659774396_depth.png,Depth,"[1,2]",low,0.6,"The individuals are relatively close, but not directly facing each other."
+0,ignoring_1773659774396_depth.png,Depth,"[1,3]",low,0.7,The individuals are not facing each other and are a moderate distance apart.
+0,ignoring_1773659774396_depth.png,Depth,"[1,4]",low,0.7,The individuals are not facing each other and are a moderate distance apart.
+0,ignoring_1773659774396_depth.png,Depth,"[2,3]",low,0.6,"The individuals are relatively close, but not directly facing each other."
+0,ignoring_1773659774396_depth.png,Depth,"[2,4]",low,0.6,"The individuals are relatively close, but not directly facing each other."
+0,ignoring_1773659774396_depth.png,Depth,"[3,4]",low,0.7,The individuals are not facing each other and are a moderate distance apart.
+0,ignoring_1773659834008_raw.jpg,Raw,"[1,2]",low,0.8,The two people are not facing each other and do not appear to be interacting.
+0,ignoring_1773659834008_raw.jpg,Raw,"[1,3]",low,0.8,The two people are not facing each other and do not appear to be interacting.
+0,ignoring_1773659834008_raw.jpg,Raw,"[2,3]",low,0.8,The two people are not facing each other and do not appear to be interacting.
+0,ignoring_1773659834008_annotated.jpg,Annotated,"[1,2]",low,0.7,The people are not facing each other and are not close.
+0,ignoring_1773659834008_annotated.jpg,Annotated,"[1,3]",low,0.7,The people are not facing each other and are not close.
+0,ignoring_1773659834008_annotated.jpg,Annotated,"[2,3]",low,0.7,The people are not facing each other and are not close.
+0,ignoring_1773659834008_depth.png,Depth,"[1,2]",medium,0.3,"The two people are close and facing each other, suggesting a conversation."
+0,photography_1773659613157_raw.jpg,Raw,"[1,2]",high,0.1,"Person 1 is taking a photo of person 2, so they are engaged."
+0,photography_1773659613157_raw.jpg,Raw,"[1,3]",high,0.1,"Person 1 is taking a photo of person 3, so they are engaged."
+0,photography_1773659613157_raw.jpg,Raw,"[1,4]",high,0.1,"Person 1 is taking a photo of person 4, so they are engaged."
+0,photography_1773659613157_raw.jpg,Raw,"[2,3]",medium,0.1,"Persons 2 and 3 are being photographed together, so they are engaged."
+0,photography_1773659613157_raw.jpg,Raw,"[2,4]",medium,0.1,"Persons 2 and 4 are being photographed together, so they are engaged."
+0,photography_1773659613157_raw.jpg,Raw,"[3,4]",medium,0.1,"Persons 3 and 4 are being photographed together, so they are engaged."
+0,photography_1773659613157_annotated.jpg,Annotated,"[1,2]",high,0.1,"Person 1 is taking a photo of persons 2, 3, and 4, so there is a social boundary."
+0,photography_1773659613157_annotated.jpg,Annotated,"[1,3]",high,0.1,"Person 1 is taking a photo of persons 2, 3, and 4, so there is a social boundary."
+0,photography_1773659613157_annotated.jpg,Annotated,"[1,4]",high,0.1,"Person 1 is taking a photo of persons 2, 3, and 4, so there is a social boundary."
+0,photography_1773659613157_annotated.jpg,Annotated,"[2,3]",high,0.1,"Person 1 is taking a photo of persons 2, 3, and 4, so there is a social boundary."
+0,photography_1773659613157_annotated.jpg,Annotated,"[2,4]",high,0.1,"Person 1 is taking a photo of persons 2, 3, and 4, so there is a social boundary."
+0,photography_1773659613157_annotated.jpg,Annotated,"[3,4]",high,0.1,"Person 1 is taking a photo of persons 2, 3, and 4, so there is a social boundary."
+0,photography_1773659613157_depth.png,Depth,"[1,2]",low,0.6,"The two people are close, but not directly facing each other."
+0,photography_1773659639743_raw.jpg,Raw,"[1,2]",high,0.1,"Person 1 is taking a photo of person 2, indicating a social interaction."
+0,photography_1773659639743_raw.jpg,Raw,"[1,3]",high,0.1,"Person 1 is taking a photo of person 3, indicating a social interaction."
+0,photography_1773659639743_raw.jpg,Raw,"[1,4]",high,0.1,"Person 1 is taking a photo of person 4, indicating a social interaction."
+0,photography_1773659639743_raw.jpg,Raw,"[2,3]",medium,0.1,Persons 2 and 3 are being photographed together.
+0,photography_1773659639743_raw.jpg,Raw,"[2,4]",medium,0.1,Persons 2 and 4 are being photographed together.
+0,photography_1773659639743_raw.jpg,Raw,"[3,4]",medium,0.1,Persons 3 and 4 are being photographed together.
+0,photography_1773659639743_annotated.jpg,Annotated,"[1,2]",high,0.1,"Person 1 is taking a photo of persons 2, 3, and 4, so they are all part of the same group."
+0,photography_1773659639743_annotated.jpg,Annotated,"[1,3]",high,0.1,"Person 1 is taking a photo of persons 2, 3, and 4, so they are all part of the same group."
+0,photography_1773659639743_annotated.jpg,Annotated,"[1,4]",high,0.1,"Person 1 is taking a photo of persons 2, 3, and 4, so they are all part of the same group."
+0,photography_1773659639743_annotated.jpg,Annotated,"[2,3]",high,0.1,"Person 1 is taking a photo of persons 2, 3, and 4, so they are all part of the same group."
+0,photography_1773659639743_annotated.jpg,Annotated,"[2,4]",high,0.1,"Person 1 is taking a photo of persons 2, 3, and 4, so they are all part of the same group."
+0,photography_1773659639743_annotated.jpg,Annotated,"[3,4]",high,0.1,"Person 1 is taking a photo of persons 2, 3, and 4, so they are all part of the same group."
+0,photography_1773659639743_depth.png,Depth,"[1,2]",medium,0.3,The two people are close and may be talking.
+0,photography_1773659639743_depth.png,Depth,"[1,3]",medium,0.3,The two people are close and may be talking.
+0,photography_1773659639743_depth.png,Depth,"[2,3]",medium,0.4,The two people are close and may be talking.
+0,playing_1773660081300_raw.jpg,Raw,"[1,2]",high,0.1,People 1 and 2 are actively interacting with each other.
+0,playing_1773660081300_raw.jpg,Raw,"[1,3]",high,0.1,People 1 and 3 are actively interacting with each other.
+0,playing_1773660081300_raw.jpg,Raw,"[1,4]",high,0.1,People 1 and 4 are actively interacting with each other.
+0,playing_1773660081300_raw.jpg,Raw,"[2,3]",high,0.1,People 2 and 3 are actively interacting with each other.
+0,playing_1773660081300_raw.jpg,Raw,"[2,4]",high,0.1,People 2 and 4 are actively interacting with each other.
+0,playing_1773660081300_raw.jpg,Raw,"[3,4]",high,0.1,People 3 and 4 are actively interacting with each other.
+0,playing_1773660081300_annotated.jpg,Annotated,"[1,2]",high,0.1,IDs 1 and 2 appear to be interacting closely.
+0,playing_1773660081300_annotated.jpg,Annotated,"[1,3]",medium,0.1,IDs 1 and 3 are part of a group interaction.
+0,playing_1773660081300_annotated.jpg,Annotated,"[1,4]",medium,0.1,IDs 1 and 4 are part of a group interaction.
+0,playing_1773660081300_annotated.jpg,Annotated,"[2,3]",medium,0.1,IDs 2 and 3 are part of a group interaction.
+0,playing_1773660081300_annotated.jpg,Annotated,"[2,4]",medium,0.1,IDs 2 and 4 are part of a group interaction.
+0,playing_1773660081300_annotated.jpg,Annotated,"[3,4]",high,0.1,IDs 3 and 4 appear to be interacting closely.
+0,playing_1773660081300_depth.png,Depth,"[1,2]",high,0.1,People 1 and 2 are very close and appear to be shaking hands.
+0,playing_1773660081300_depth.png,Depth,"[1,3]",medium,0.3,People 1 and 3 are facing each other and are relatively close.
+0,playing_1773660081300_depth.png,Depth,"[2,3]",medium,0.4,People 2 and 3 are close and oriented towards each other.
+0,playing_1773660151675_raw.jpg,Raw,"[1,2]",high,0.1,"People 1 and 2 are holding a rope together, indicating a shared activity."
+0,playing_1773660151675_raw.jpg,Raw,"[1,3]",high,0.1,"People 1 and 3 are holding a rope together, indicating a shared activity."
+0,playing_1773660151675_raw.jpg,Raw,"[1,4]",low,0.2,People 1 and 4 are likely part of the same group activity.
+0,playing_1773660151675_raw.jpg,Raw,"[2,3]",high,0.1,"People 2 and 3 are holding a rope together, indicating a shared activity."
+0,playing_1773660151675_raw.jpg,Raw,"[2,4]",low,0.2,People 2 and 4 are likely part of the same group activity.
+0,playing_1773660151675_raw.jpg,Raw,"[3,4]",low,0.2,People 3 and 4 are likely part of the same group activity.
+0,playing_1773660151675_annotated.jpg,Annotated,"[1,2]",low,0.7,IDs 1 and 2 are not interacting.
+0,playing_1773660151675_annotated.jpg,Annotated,"[1,3]",low,0.7,IDs 1 and 3 are not interacting.
+0,playing_1773660151675_annotated.jpg,Annotated,"[1,4]",low,0.7,IDs 1 and 4 are not interacting.
+0,playing_1773660151675_annotated.jpg,Annotated,"[2,3]",low,0.7,IDs 2 and 3 are not interacting.
+0,playing_1773660151675_annotated.jpg,Annotated,"[2,4]",low,0.7,IDs 2 and 4 are not interacting.
+0,playing_1773660151675_annotated.jpg,Annotated,"[3,4]",high,0.1,"IDs 3 and 4 are close and facing each other, indicating interaction."
+0,playing_1773660151675_depth.png,Depth,"[1,2]",medium,0.3,"The two people are close and facing each other, suggesting a conversation."
+0,playing_1773660151675_depth.png,Depth,"[1,3]",low,0.6,"The people are relatively far apart, so the engagement is low."
+0,playing_1773660151675_depth.png,Depth,"[2,3]",medium,0.4,The people are close and may be interacting.
+0,presenting_1773659975252_raw.jpg,Raw,"[1,2]",low,0.1,"The scene is FULL-GROUP, so all pairs are blocked; these two are part of the group."
+0,presenting_1773659975252_raw.jpg,Raw,"[1,3]",low,0.1,"The scene is FULL-GROUP, so all pairs are blocked; these two are part of the group."
+0,presenting_1773659975252_raw.jpg,Raw,"[1,4]",low,0.1,"The scene is FULL-GROUP, so all pairs are blocked; these two are part of the group."
+0,presenting_1773659975252_raw.jpg,Raw,"[2,3]",medium,0.1,"The scene is FULL-GROUP, so all pairs are blocked; these two are part of the group."
+0,presenting_1773659975252_raw.jpg,Raw,"[2,4]",medium,0.1,"The scene is FULL-GROUP, so all pairs are blocked; these two are part of the group."
+0,presenting_1773659975252_raw.jpg,Raw,"[3,4]",medium,0.1,"The scene is FULL-GROUP, so all pairs are blocked; these two are part of the group."
+0,presenting_1773659975252_annotated.jpg,Annotated,"[1,2]",low,0.6,They are standing near each other but not interacting.
+0,presenting_1773659975252_annotated.jpg,Annotated,"[1,3]",low,0.6,They are standing near each other but not interacting.
+0,presenting_1773659975252_annotated.jpg,Annotated,"[1,4]",low,0.6,They are standing near each other but not interacting.
+0,presenting_1773659975252_annotated.jpg,Annotated,"[2,3]",medium,0.3,"They are standing close and facing the same direction, possibly interacting."
+0,presenting_1773659975252_annotated.jpg,Annotated,"[2,4]",medium,0.3,"They are standing close and facing the same direction, possibly interacting."
+0,presenting_1773659975252_annotated.jpg,Annotated,"[3,4]",high,0.1,They are facing each other and likely interacting.
+0,presenting_1773659975252_depth.png,Depth,"[1,2]",medium,0.3,The two people are close together and may be interacting.
+0,presenting_1773660014817_raw.jpg,Raw,"[1,2]",high,0.1,People 1 and 2 are part of a group interacting with person 4.
+0,presenting_1773660014817_raw.jpg,Raw,"[1,3]",high,0.1,People 1 and 3 are part of a group interacting with person 4.
+0,presenting_1773660014817_raw.jpg,Raw,"[1,4]",high,0.1,People 1 and 4 are interacting.
+0,presenting_1773660014817_raw.jpg,Raw,"[2,3]",high,0.1,People 2 and 3 are part of a group interacting with person 4.
+0,presenting_1773660014817_raw.jpg,Raw,"[2,4]",high,0.1,People 2 and 4 are interacting.
+0,presenting_1773660014817_raw.jpg,Raw,"[3,4]",high,0.1,People 3 and 4 are interacting.
+0,presenting_1773660014817_annotated.jpg,Annotated,"[1,2]",medium,0.1,"IDs 1 and 2 are standing close and facing each other, suggesting interaction."
+0,presenting_1773660014817_annotated.jpg,Annotated,"[1,3]",medium,0.1,IDs 1 and 3 are likely interacting as part of a group.
+0,presenting_1773660014817_annotated.jpg,Annotated,"[1,4]",medium,0.1,IDs 1 and 4 are likely interacting as part of a group.
+0,presenting_1773660014817_annotated.jpg,Annotated,"[2,3]",medium,0.1,IDs 2 and 3 are likely interacting as part of a group.
+0,presenting_1773660014817_annotated.jpg,Annotated,"[2,4]",medium,0.1,IDs 2 and 4 are likely interacting as part of a group.
+0,presenting_1773660014817_annotated.jpg,Annotated,"[3,4]",medium,0.1,IDs 3 and 4 are likely interacting as part of a group.
+0,presenting_1773660014817_depth.png,Depth,"[1,2]",medium,0.3,People 1 and 2 are close together and may be interacting.
+0,presenting_1773660014817_depth.png,Depth,"[1,3]",low,0.7,"People 1 and 3 are further apart, suggesting less interaction."
+0,presenting_1773660014817_depth.png,Depth,"[1,4]",low,0.6,People 1 and 4 are separated by some distance.
+0,presenting_1773660014817_depth.png,Depth,"[2,3]",low,0.7,"People 2 and 3 are further apart, suggesting less interaction."
+0,presenting_1773660014817_depth.png,Depth,"[2,4]",low,0.6,People 2 and 4 are separated by some distance.
+0,presenting_1773660014817_depth.png,Depth,"[3,4]",low,0.7,"People 3 and 4 are further apart, suggesting less interaction."
+0,proxemics_1773659882818_raw.jpg,Raw,"[1,2]",low,0.8,The two people are not interacting.
+0,proxemics_1773659882818_raw.jpg,Raw,"[1,3]",low,0.8,The two people are not interacting.
+0,proxemics_1773659882818_raw.jpg,Raw,"[2,3]",low,0.8,The two people are not interacting.
+0,proxemics_1773659882818_annotated.jpg,Annotated,"[1,2]",low,0.7,"IDs 1 and 2 are standing near each other, but not interacting."
+0,proxemics_1773659882818_annotated.jpg,Annotated,"[1,3]",low,0.8,IDs 1 and 3 are not interacting and are spatially separated.
+0,proxemics_1773659882818_annotated.jpg,Annotated,"[2,3]",low,0.7,"IDs 2 and 3 are standing near each other, but not interacting."
+0,proxemics_1773659882818_depth.png,Depth,"[1,2]",medium,0.3,"The two people are close to each other, suggesting a possible interaction."
+0,proxemics_1773659882818_depth.png,Depth,"[1,3]",low,0.6,"The people are relatively far apart, suggesting a low chance of interaction."
+0,proxemics_1773659882818_depth.png,Depth,"[2,3]",medium,0.4,"The people are relatively close, suggesting a possible interaction."
+0,proxemics_1773659933135_raw.jpg,Raw,"[1,2]",low,1.0,The two people are not interacting.
+0,proxemics_1773659933135_annotated.jpg,Annotated,"[1,2]",low,0.7,The two people are not facing each other and are not close together.
+0,proxemics_1773659933135_depth.png,Depth,"[1,2]",low,0.6,"The two people are close to each other, suggesting a possible interaction."
+0,sharedtask_1773660202932_raw.jpg,Raw,"[1,2]",high,0.1,"The two people are actively exchanging documents, indicating a high level of interaction."
+0,sharedtask_1773660202932_annotated.jpg,Annotated,"[1,2]",high,0.1,IDs 1 and 2 are interacting by exchanging documents.
+0,sharedtask_1773660202932_depth.png,Depth,"[1,2]",high,0.1,"The two people are very close and facing each other, suggesting a conversation."
+0,sharedtask_1773660245827_raw.jpg,Raw,"[1,2]",high,0.1,People 1 and 2 are jointly carrying a chair.
+0,sharedtask_1773660245827_raw.jpg,Raw,"[1,3]",high,0.1,People 1 and 3 are jointly carrying a chair.
+0,sharedtask_1773660245827_raw.jpg,Raw,"[2,3]",high,0.1,People 2 and 3 are jointly carrying a chair.
+0,sharedtask_1773660245827_annotated.jpg,Annotated,"[1,2]",high,0.1,IDs 1 and 2 are actively moving a chair together.
+0,sharedtask_1773660245827_annotated.jpg,Annotated,"[1,3]",high,0.1,IDs 1 and 3 are actively moving a chair together.
+0,sharedtask_1773660245827_annotated.jpg,Annotated,"[2,3]",high,0.1,IDs 2 and 3 are actively moving a chair together.
+0,sharedtask_1773660245827_depth.png,Depth,"[1,2]",medium,0.3,"The two people are close and facing each other, suggesting a conversation."
+0,sharedtask_1773660245827_depth.png,Depth,"[1,3]",medium,0.3,"The two people are close and facing each other, suggesting a conversation."
+0,sharedtask_1773660245827_depth.png,Depth,"[2,3]",medium,0.4,"The two people are close and facing each other, suggesting a conversation."

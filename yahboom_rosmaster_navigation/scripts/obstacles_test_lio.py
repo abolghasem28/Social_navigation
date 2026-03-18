@@ -1,39 +1,49 @@
 #!/usr/bin/env python3
 import rclpy
 from rclpy.node import Node
+from geometry_msgs.msg import PoseArray
 from sensor_msgs.msg import PointCloud2, PointField
-import struct
+import sensor_msgs_py.point_cloud2 as pc2
+from std_msgs.msg import Header
+import numpy as np
 
-class SyntheticSocialEntity(Node):
+class SocialWallSimulator(Node):
     def __init__(self):
-        super().__init__('synthetic_social_entity_injector')
+        super().__init__('social_wall_simulator')
+        
+        # Subscribe to your YOLO output
+        self.sub = self.create_subscription(PoseArray, '/detected_humans', self.pose_cb, 10)
+        
+        # Publish to the topic your Nav2 YAML is listening to
         self.pub = self.create_publisher(PointCloud2, '/social_obstacles', 10)
-        self.create_timer(0.1, self.inject_payload)
+        self.get_logger().info("Social Wall Simulator Running: Projecting 1m lines.")
 
-    def inject_payload(self):
-        cloud = PointCloud2()
-        cloud.header.frame_id = 'LIO_base_link'
-        cloud.header.stamp = self.get_clock().now().to_msg()
-        cloud.height = 1
+    def pose_cb(self, msg: PoseArray):
+        points = []
         
-        # Matrix: Generate a vertical pillar at X=1.5m, Y=0.0m
-        points = [struct.pack('fff', 1.5, 0.0, z * 0.2) for z in range(10)]
-        
-        cloud.width = len(points)
-        cloud.fields = [
-            PointField(name='x', offset=0, datatype=PointField.FLOAT32, count=1),
-            PointField(name='y', offset=4, datatype=PointField.FLOAT32, count=1),
-            PointField(name='z', offset=8, datatype=PointField.FLOAT32, count=1),
-        ]
-        cloud.is_bigendian = False
-        cloud.point_step = 12
-        cloud.row_step = 12 * len(points)
-        cloud.data = b''.join(points)
-        self.pub.publish(cloud)
+        # For every human detected by YOLO
+        for pose in msg.poses:
+            start_x = pose.position.x
+            start_y = pose.position.y
+            z = 0.5 # Hover slightly above ground
+            
+            # Create a line of points 1 meter forward in the X direction
+            # Interpolating a point every 5 cm (0.05m) to make a solid wall
+            for offset in np.arange(0.0, 1.05, 0.05):
+                points.append([start_x + offset, start_y, z])
+                
+        # Create the Header matching your camera/robot frame
+        header = Header()
+        header.stamp = self.get_clock().now().to_msg()
+        header.frame_id = msg.header.frame_id 
+
+        # Create and publish the PointCloud2 message
+        cloud_msg = pc2.create_cloud_xyz32(header, points)
+        self.pub.publish(cloud_msg)
 
 def main():
     rclpy.init()
-    rclpy.spin(SyntheticSocialEntity())
+    rclpy.spin(SocialWallSimulator())
     rclpy.shutdown()
 
 if __name__ == '__main__':

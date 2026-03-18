@@ -1,0 +1,154 @@
+Run_ID,Filename,Image_Type,Pair,Predicted_Engagement,Predicted_Crossability,Reason,Predicted_Decision,Base_Scene,Actual_Status,Level_Engagement
+0,conversation_1773659674996_raw.jpg,Raw,"[1,2]",medium,0.3,Individuals 1 and 2 appear to be engaged in a conversation.,Blocked,conversation_1773659674996,Blocked,high
+0,conversation_1773659674996_raw.jpg,Raw,"[1,3]",medium,0.3,Individuals 1 and 3 appear to be engaged in a conversation.,Blocked,conversation_1773659674996,Blocked,high
+0,conversation_1773659674996_raw.jpg,Raw,"[1,4]",medium,0.3,Individuals 1 and 4 appear to be engaged in a conversation.,Blocked,conversation_1773659674996,Blocked,high
+0,conversation_1773659674996_raw.jpg,Raw,"[2,3]",high,0.1,"Individuals 2 and 3 are standing close and facing each other, suggesting a conversation.",Blocked,conversation_1773659674996,Blocked,low
+0,conversation_1773659674996_raw.jpg,Raw,"[2,4]",high,0.1,"Individuals 2 and 4 are standing close and facing each other, suggesting a conversation.",Blocked,conversation_1773659674996,Blocked,low
+0,conversation_1773659674996_raw.jpg,Raw,"[3,4]",high,0.1,"Individuals 3 and 4 are standing close and facing each other, suggesting a conversation.",Blocked,conversation_1773659674996,Blocked,low
+0,conversation_1773659674996_annotated.jpg,Annotated,"[1,2]",low,0.7,Individuals 1 and 2 are not facing each other and are at a distance.,Open,conversation_1773659674996,Blocked,high
+0,conversation_1773659674996_annotated.jpg,Annotated,"[1,3]",low,0.7,Individuals 1 and 3 are not facing each other and are at a distance.,Open,conversation_1773659674996,Blocked,high
+0,conversation_1773659674996_annotated.jpg,Annotated,"[1,4]",low,0.7,Individuals 1 and 4 are not facing each other and are at a distance.,Open,conversation_1773659674996,Blocked,high
+0,conversation_1773659674996_annotated.jpg,Annotated,"[2,3]",medium,0.4,Individuals 2 and 3 are close and may be interacting.,Blocked,conversation_1773659674996,Blocked,low
+0,conversation_1773659674996_annotated.jpg,Annotated,"[2,4]",medium,0.4,Individuals 2 and 4 are close and may be interacting.,Blocked,conversation_1773659674996,Blocked,low
+0,conversation_1773659674996_annotated.jpg,Annotated,"[3,4]",medium,0.4,Individuals 3 and 4 are close and may be interacting.,Blocked,conversation_1773659674996,Blocked,low
+0,conversation_1773659674996_depth.png,Depth,"[1,2]",medium,0.3,"The two people are close and facing each other, suggesting a conversation.",Blocked,conversation_1773659674996,Blocked,high
+0,conversation_1773659727488_raw.jpg,Raw,"[1,2]",medium,0.3,The two people are facing each other and appear to be in conversation.,Blocked,conversation_1773659727488,Blocked,high
+0,conversation_1773659727488_annotated.jpg,Annotated,"[1,2]",low,0.7,"The two people are standing near each other, but it is unclear if they are interacting.",Open,conversation_1773659727488,Blocked,high
+0,ignoring_1773659774396_raw.jpg,Raw,"[1,2]",low,0.7,"They are not facing each other, so there is a low chance of interaction.",Open,ignoring_1773659774396,Blocked,high
+0,ignoring_1773659774396_raw.jpg,Raw,"[1,3]",low,0.8,"They are not facing each other, so there is a low chance of interaction.",Open,ignoring_1773659774396,Open,high
+0,ignoring_1773659774396_raw.jpg,Raw,"[1,4]",low,0.8,"They are not facing each other, so there is a low chance of interaction.",Open,ignoring_1773659774396,Open,low
+0,ignoring_1773659774396_raw.jpg,Raw,"[2,3]",low,0.7,"They are not facing each other, so there is a low chance of interaction.",Open,ignoring_1773659774396,Open,low
+0,ignoring_1773659774396_raw.jpg,Raw,"[2,4]",low,0.8,"They are not facing each other, so there is a low chance of interaction.",Open,ignoring_1773659774396,Open,low
+0,ignoring_1773659774396_raw.jpg,Raw,"[3,4]",low,0.7,"They are not facing each other, so there is a low chance of interaction.",Open,ignoring_1773659774396,Open,low
+0,ignoring_1773659774396_annotated.jpg,Annotated,"[1,2]",low,0.7,Individuals 1 and 2 are not interacting.,Open,ignoring_1773659774396,Blocked,high
+0,ignoring_1773659774396_annotated.jpg,Annotated,"[1,3]",low,0.7,Individuals 1 and 3 are not interacting.,Open,ignoring_1773659774396,Open,high
+0,ignoring_1773659774396_annotated.jpg,Annotated,"[1,4]",low,0.7,Individuals 1 and 4 are not interacting.,Open,ignoring_1773659774396,Open,low
+0,ignoring_1773659774396_annotated.jpg,Annotated,"[2,3]",low,0.7,Individuals 2 and 3 are not interacting.,Open,ignoring_1773659774396,Open,low
+0,ignoring_1773659774396_annotated.jpg,Annotated,"[2,4]",low,0.7,Individuals 2 and 4 are not interacting.,Open,ignoring_1773659774396,Open,low
+0,ignoring_1773659774396_annotated.jpg,Annotated,"[3,4]",low,0.6,Individuals 3 and 4 are not interacting.,Open,ignoring_1773659774396,Open,low
+0,ignoring_1773659774396_depth.png,Depth,"[1,2]",low,0.6,"The individuals are relatively close, but not directly facing each other.",Open,ignoring_1773659774396,Blocked,high
+0,ignoring_1773659774396_depth.png,Depth,"[1,3]",low,0.7,The individuals are not facing each other and are a moderate distance apart.,Open,ignoring_1773659774396,Open,high
+0,ignoring_1773659774396_depth.png,Depth,"[1,4]",low,0.7,The individuals are not facing each other and are a moderate distance apart.,Open,ignoring_1773659774396,Open,low
+0,ignoring_1773659774396_depth.png,Depth,"[2,3]",low,0.6,"The individuals are relatively close, but not directly facing each other.",Open,ignoring_1773659774396,Open,low
+0,ignoring_1773659774396_depth.png,Depth,"[2,4]",low,0.6,"The individuals are relatively close, but not directly facing each other.",Open,ignoring_1773659774396,Open,low
+0,ignoring_1773659774396_depth.png,Depth,"[3,4]",low,0.6,"The individuals are relatively close, but not directly facing each other.",Open,ignoring_1773659774396,Open,low
+0,ignoring_1773659834008_raw.jpg,Raw,"[1,2]",low,0.7,The two people are not looking at each other.,Open,ignoring_1773659834008,Open,low
+0,ignoring_1773659834008_raw.jpg,Raw,"[1,3]",low,0.7,The two people are not looking at each other.,Open,ignoring_1773659834008,Open,low
+0,ignoring_1773659834008_raw.jpg,Raw,"[2,3]",low,0.7,The two people are not looking at each other.,Open,ignoring_1773659834008,Open,low
+0,ignoring_1773659834008_annotated.jpg,Annotated,"[1,2]",low,0.7,"The two people are standing near each other, but not interacting.",Open,ignoring_1773659834008,Open,low
+0,ignoring_1773659834008_annotated.jpg,Annotated,"[1,3]",low,0.7,"The two people are standing near each other, but not interacting.",Open,ignoring_1773659834008,Open,low
+0,ignoring_1773659834008_annotated.jpg,Annotated,"[2,3]",low,0.7,"The two people are standing near each other, but not interacting.",Open,ignoring_1773659834008,Open,low
+0,ignoring_1773659834008_depth.png,Depth,"[1,2]",medium,0.3,"The two people are close and facing each other, suggesting a conversation.",Blocked,ignoring_1773659834008,Open,low
+0,photography_1773659613157_raw.jpg,Raw,"[1,2]",high,0.2,"Person 1 is taking a photo of person 2, indicating high engagement.",Blocked,photography_1773659613157,Blocked,high
+0,photography_1773659613157_raw.jpg,Raw,"[1,3]",high,0.2,"Person 1 is taking a photo of person 3, indicating high engagement.",Blocked,photography_1773659613157,Blocked,high
+0,photography_1773659613157_raw.jpg,Raw,"[1,4]",high,0.2,"Person 1 is taking a photo of person 4, indicating high engagement.",Blocked,photography_1773659613157,Blocked,high
+0,photography_1773659613157_raw.jpg,Raw,"[2,3]",low,0.7,"Persons 2 and 3 are standing near each other, but not actively interacting.",Open,photography_1773659613157,Blocked,low
+0,photography_1773659613157_raw.jpg,Raw,"[2,4]",low,0.7,"Persons 2 and 4 are standing near each other, but not actively interacting.",Open,photography_1773659613157,Blocked,low
+0,photography_1773659613157_raw.jpg,Raw,"[3,4]",low,0.7,"Persons 3 and 4 are standing near each other, but not actively interacting.",Open,photography_1773659613157,Blocked,low
+0,photography_1773659613157_annotated.jpg,Annotated,"[1,2]",low,0.7,They are not looking at each other.,Open,photography_1773659613157,Blocked,high
+0,photography_1773659613157_annotated.jpg,Annotated,"[1,3]",low,0.7,They are not looking at each other.,Open,photography_1773659613157,Blocked,high
+0,photography_1773659613157_annotated.jpg,Annotated,"[1,4]",low,0.7,They are not looking at each other.,Open,photography_1773659613157,Blocked,high
+0,photography_1773659613157_annotated.jpg,Annotated,"[2,3]",low,0.6,They are standing close to each other.,Open,photography_1773659613157,Blocked,low
+0,photography_1773659613157_annotated.jpg,Annotated,"[2,4]",low,0.6,They are standing close to each other.,Open,photography_1773659613157,Blocked,low
+0,photography_1773659613157_annotated.jpg,Annotated,"[3,4]",low,0.6,They are standing close to each other.,Open,photography_1773659613157,Blocked,low
+0,photography_1773659613157_depth.png,Depth,"[1,2]",medium,0.3,The two people are close together and may be interacting.,Blocked,photography_1773659613157,Blocked,high
+0,photography_1773659639743_raw.jpg,Raw,"[1,2]",medium,0.3,"Person 1 is taking a photo of the group, so they are likely interacting.",Blocked,photography_1773659639743,Blocked,high
+0,photography_1773659639743_raw.jpg,Raw,"[1,3]",medium,0.3,"Person 1 is taking a photo of the group, so they are likely interacting.",Blocked,photography_1773659639743,Blocked,high
+0,photography_1773659639743_raw.jpg,Raw,"[1,4]",medium,0.3,"Person 1 is taking a photo of the group, so they are likely interacting.",Blocked,photography_1773659639743,Blocked,high
+0,photography_1773659639743_raw.jpg,Raw,"[2,3]",high,0.2,"The group is posing for a photo, indicating high engagement.",Blocked,photography_1773659639743,Open,low
+0,photography_1773659639743_raw.jpg,Raw,"[2,4]",high,0.2,"The group is posing for a photo, indicating high engagement.",Blocked,photography_1773659639743,Open,low
+0,photography_1773659639743_raw.jpg,Raw,"[3,4]",high,0.2,"The group is posing for a photo, indicating high engagement.",Blocked,photography_1773659639743,Open,low
+0,photography_1773659639743_annotated.jpg,Annotated,"[1,2]",low,0.7,"They are not looking at each other, so the robot can probably cross.",Open,photography_1773659639743,Blocked,high
+0,photography_1773659639743_annotated.jpg,Annotated,"[1,3]",low,0.7,"They are not looking at each other, so the robot can probably cross.",Open,photography_1773659639743,Blocked,high
+0,photography_1773659639743_annotated.jpg,Annotated,"[1,4]",low,0.7,"They are not looking at each other, so the robot can probably cross.",Open,photography_1773659639743,Blocked,high
+0,photography_1773659639743_annotated.jpg,Annotated,"[2,3]",medium,0.4,"They are standing close to each other, so they might be talking.",Blocked,photography_1773659639743,Open,low
+0,photography_1773659639743_annotated.jpg,Annotated,"[2,4]",medium,0.4,"They are standing close to each other, so they might be talking.",Blocked,photography_1773659639743,Open,low
+0,photography_1773659639743_annotated.jpg,Annotated,"[3,4]",medium,0.4,"They are standing close to each other, so they might be talking.",Blocked,photography_1773659639743,Open,low
+0,photography_1773659639743_depth.png,Depth,"[1,2]",medium,0.3,The two people are close and may be interacting.,Blocked,photography_1773659639743,Blocked,high
+0,photography_1773659639743_depth.png,Depth,"[1,3]",medium,0.3,The two people are close and may be interacting.,Blocked,photography_1773659639743,Blocked,high
+0,photography_1773659639743_depth.png,Depth,"[2,3]",medium,0.4,The two people are close and may be interacting.,Blocked,photography_1773659639743,Open,low
+0,playing_1773660081300_raw.jpg,Raw,"[1,2]",high,0.1,Individuals 1 and 2 are actively engaged in a game.,Blocked,playing_1773660081300,Blocked,high
+0,playing_1773660081300_raw.jpg,Raw,"[1,3]",high,0.1,Individuals 1 and 3 are actively engaged in a game.,Blocked,playing_1773660081300,Blocked,high
+0,playing_1773660081300_raw.jpg,Raw,"[1,4]",high,0.1,Individuals 1 and 4 are actively engaged in a game.,Blocked,playing_1773660081300,Blocked,high
+0,playing_1773660081300_raw.jpg,Raw,"[2,3]",high,0.1,Individuals 2 and 3 are actively engaged in a game.,Blocked,playing_1773660081300,Blocked,high
+0,playing_1773660081300_raw.jpg,Raw,"[2,4]",high,0.1,Individuals 2 and 4 are actively engaged in a game.,Blocked,playing_1773660081300,Blocked,high
+0,playing_1773660081300_raw.jpg,Raw,"[3,4]",high,0.1,Individuals 3 and 4 are actively engaged in a game.,Blocked,playing_1773660081300,Blocked,high
+0,playing_1773660081300_annotated.jpg,Annotated,"[1,2]",medium,0.3,Individuals 1 and 2 appear to be engaged in a conversation or shared activity.,Blocked,playing_1773660081300,Blocked,high
+0,playing_1773660081300_annotated.jpg,Annotated,"[1,3]",low,0.7,Individuals 1 and 3 are not directly interacting.,Open,playing_1773660081300,Blocked,high
+0,playing_1773660081300_annotated.jpg,Annotated,"[1,4]",low,0.7,Individuals 1 and 4 are not directly interacting.,Open,playing_1773660081300,Blocked,high
+0,playing_1773660081300_annotated.jpg,Annotated,"[2,3]",low,0.7,Individuals 2 and 3 are not directly interacting.,Open,playing_1773660081300,Blocked,high
+0,playing_1773660081300_annotated.jpg,Annotated,"[2,4]",low,0.7,Individuals 2 and 4 are not directly interacting.,Open,playing_1773660081300,Blocked,high
+0,playing_1773660081300_annotated.jpg,Annotated,"[3,4]",medium,0.3,Individuals 3 and 4 appear to be engaged in a conversation or shared activity.,Blocked,playing_1773660081300,Blocked,high
+0,playing_1773660081300_depth.png,Depth,"[1,2]",high,0.1,People 1 and 2 are very close and appear to be shaking hands.,Blocked,playing_1773660081300,Blocked,high
+0,playing_1773660081300_depth.png,Depth,"[1,3]",medium,0.3,People 1 and 3 are facing each other and are relatively close.,Blocked,playing_1773660081300,Blocked,high
+0,playing_1773660081300_depth.png,Depth,"[2,3]",medium,0.4,People 2 and 3 are close and may be interacting.,Blocked,playing_1773660081300,Blocked,high
+0,playing_1773660151675_raw.jpg,Raw,"[1,2]",high,0.1,Individuals 1 and 2 are holding a rope and actively engaged in a task.,Blocked,playing_1773660151675,Blocked,low
+0,playing_1773660151675_raw.jpg,Raw,"[1,3]",low,0.7,Individuals 1 and 3 are not directly interacting.,Open,playing_1773660151675,Blocked,high
+0,playing_1773660151675_raw.jpg,Raw,"[1,4]",low,0.7,Individuals 1 and 4 are not directly interacting.,Open,playing_1773660151675,Blocked,high
+0,playing_1773660151675_raw.jpg,Raw,"[2,3]",low,0.7,Individuals 2 and 3 are not directly interacting.,Open,playing_1773660151675,Blocked,low
+0,playing_1773660151675_raw.jpg,Raw,"[2,4]",low,0.7,Individuals 2 and 4 are not directly interacting.,Open,playing_1773660151675,Blocked,low
+0,playing_1773660151675_raw.jpg,Raw,"[3,4]",medium,0.4,Individuals 3 and 4 appear to be engaged in a shared task.,Blocked,playing_1773660151675,Blocked,low
+0,playing_1773660151675_annotated.jpg,Annotated,"[1,2]",low,0.7,Individuals 1 and 2 are not interacting.,Open,playing_1773660151675,Blocked,low
+0,playing_1773660151675_annotated.jpg,Annotated,"[1,3]",low,0.7,Individuals 1 and 3 are not interacting.,Open,playing_1773660151675,Blocked,high
+0,playing_1773660151675_annotated.jpg,Annotated,"[1,4]",low,0.7,Individuals 1 and 4 are not interacting.,Open,playing_1773660151675,Blocked,high
+0,playing_1773660151675_annotated.jpg,Annotated,"[2,3]",low,0.7,Individuals 2 and 3 are not interacting.,Open,playing_1773660151675,Blocked,low
+0,playing_1773660151675_annotated.jpg,Annotated,"[2,4]",low,0.7,Individuals 2 and 4 are not interacting.,Open,playing_1773660151675,Blocked,low
+0,playing_1773660151675_annotated.jpg,Annotated,"[3,4]",medium,0.3,Individuals 3 and 4 appear to be interacting.,Blocked,playing_1773660151675,Blocked,low
+0,playing_1773660151675_depth.png,Depth,"[1,2]",medium,0.3,"The two people are close and facing each other, suggesting a conversation.",Blocked,playing_1773660151675,Blocked,low
+0,playing_1773660151675_depth.png,Depth,"[1,3]",low,0.6,"The people are somewhat close, but their orientations are unclear.",Open,playing_1773660151675,Blocked,high
+0,playing_1773660151675_depth.png,Depth,"[2,3]",medium,0.4,The people are close and may be interacting.,Blocked,playing_1773660151675,Blocked,low
+0,presenting_1773659975252_raw.jpg,Raw,"[1,2]",low,0.7,Individuals 1 and 2 are not interacting.,Open,presenting_1773659975252,Blocked,low
+0,presenting_1773659975252_raw.jpg,Raw,"[1,3]",low,0.7,Individuals 1 and 3 are not interacting.,Open,presenting_1773659975252,Blocked,low
+0,presenting_1773659975252_raw.jpg,Raw,"[1,4]",low,0.7,Individuals 1 and 4 are not interacting.,Open,presenting_1773659975252,Blocked,high
+0,presenting_1773659975252_raw.jpg,Raw,"[2,3]",low,0.6,Individuals 2 and 3 are not interacting.,Open,presenting_1773659975252,Blocked,low
+0,presenting_1773659975252_raw.jpg,Raw,"[2,4]",high,0.2,Individuals 2 and 4 are actively engaged in a discussion about the poster.,Blocked,presenting_1773659975252,Blocked,high
+0,presenting_1773659975252_raw.jpg,Raw,"[3,4]",high,0.2,Individuals 3 and 4 are actively engaged in a discussion about the poster.,Blocked,presenting_1773659975252,Blocked,high
+0,presenting_1773659975252_annotated.jpg,Annotated,"[1,2]",low,0.7,"They are standing near each other, but not interacting.",Open,presenting_1773659975252,Blocked,low
+0,presenting_1773659975252_annotated.jpg,Annotated,"[1,3]",low,0.8,"They are standing at a distance, not interacting.",Open,presenting_1773659975252,Blocked,low
+0,presenting_1773659975252_annotated.jpg,Annotated,"[1,4]",low,0.8,"They are standing at a distance, not interacting.",Open,presenting_1773659975252,Blocked,high
+0,presenting_1773659975252_annotated.jpg,Annotated,"[2,3]",low,0.6,"They are standing near each other, but not interacting.",Open,presenting_1773659975252,Blocked,low
+0,presenting_1773659975252_annotated.jpg,Annotated,"[2,4]",low,0.7,"They are standing at a distance, not interacting.",Open,presenting_1773659975252,Blocked,high
+0,presenting_1773659975252_annotated.jpg,Annotated,"[3,4]",high,0.1,They are actively looking at the poster and discussing it.,Blocked,presenting_1773659975252,Blocked,high
+0,presenting_1773659975252_depth.png,Depth,"[1,2]",medium,0.3,The two people are close together and may be interacting.,Blocked,presenting_1773659975252,Blocked,low
+0,presenting_1773660014817_raw.jpg,Raw,"[1,2]",low,0.7,They are standing close but not actively interacting.,Open,presenting_1773660014817,Blocked,low
+0,presenting_1773660014817_raw.jpg,Raw,"[1,3]",low,0.7,They are standing close but not actively interacting.,Open,presenting_1773660014817,Blocked,low
+0,presenting_1773660014817_raw.jpg,Raw,"[1,4]",low,0.7,They are standing close but not actively interacting.,Open,presenting_1773660014817,Blocked,high
+0,presenting_1773660014817_raw.jpg,Raw,"[2,3]",low,0.7,They are standing close but not actively interacting.,Open,presenting_1773660014817,Blocked,low
+0,presenting_1773660014817_raw.jpg,Raw,"[2,4]",low,0.7,They are standing close but not actively interacting.,Open,presenting_1773660014817,Blocked,high
+0,presenting_1773660014817_raw.jpg,Raw,"[3,4]",medium,0.3,They appear to be interacting with an object.,Blocked,presenting_1773660014817,Blocked,high
+0,presenting_1773660014817_annotated.jpg,Annotated,"[1,2]",medium,0.3,"Individuals 1 and 2 are standing close and facing each other, suggesting a conversation.",Blocked,presenting_1773660014817,Blocked,low
+0,presenting_1773660014817_annotated.jpg,Annotated,"[1,3]",low,0.7,Individuals 1 and 3 are not facing each other and are at a distance.,Open,presenting_1773660014817,Blocked,low
+0,presenting_1773660014817_annotated.jpg,Annotated,"[1,4]",low,0.7,Individuals 1 and 4 are not facing each other and are at a distance.,Open,presenting_1773660014817,Blocked,high
+0,presenting_1773660014817_annotated.jpg,Annotated,"[2,3]",low,0.7,Individuals 2 and 3 are not facing each other and are at a distance.,Open,presenting_1773660014817,Blocked,low
+0,presenting_1773660014817_annotated.jpg,Annotated,"[2,4]",low,0.7,Individuals 2 and 4 are not facing each other and are at a distance.,Open,presenting_1773660014817,Blocked,high
+0,presenting_1773660014817_annotated.jpg,Annotated,"[3,4]",medium,0.4,Individuals 3 and 4 are facing each other and appear to be interacting with an object.,Blocked,presenting_1773660014817,Blocked,high
+0,presenting_1773660014817_depth.png,Depth,"[1,2]",medium,0.3,People 1 and 2 are close together and may be interacting.,Blocked,presenting_1773660014817,Blocked,low
+0,presenting_1773660014817_depth.png,Depth,"[1,3]",low,0.7,"People 1 and 3 are further apart, suggesting a lower engagement.",Open,presenting_1773660014817,Blocked,low
+0,presenting_1773660014817_depth.png,Depth,"[1,4]",low,0.7,"People 1 and 4 are further apart, suggesting a lower engagement.",Open,presenting_1773660014817,Blocked,high
+0,presenting_1773660014817_depth.png,Depth,"[2,3]",low,0.7,"People 2 and 3 are further apart, suggesting a lower engagement.",Open,presenting_1773660014817,Blocked,low
+0,presenting_1773660014817_depth.png,Depth,"[2,4]",low,0.7,"People 2 and 4 are further apart, suggesting a lower engagement.",Open,presenting_1773660014817,Blocked,high
+0,presenting_1773660014817_depth.png,Depth,"[3,4]",low,0.7,"People 3 and 4 are further apart, suggesting a lower engagement.",Open,presenting_1773660014817,Blocked,high
+0,proxemics_1773659882818_raw.jpg,Raw,"[1,2]",low,0.7,"The two people are standing near each other, but not interacting.",Open,proxemics_1773659882818,Blocked,high
+0,proxemics_1773659882818_raw.jpg,Raw,"[1,3]",low,0.8,The two people are not interacting and are far apart.,Open,proxemics_1773659882818,Open,low
+0,proxemics_1773659882818_raw.jpg,Raw,"[2,3]",low,0.8,The two people are not interacting and are far apart.,Open,proxemics_1773659882818,Open,low
+0,proxemics_1773659882818_annotated.jpg,Annotated,"[1,2]",low,0.7,"The two people are standing near each other, but not actively interacting.",Open,proxemics_1773659882818,Blocked,high
+0,proxemics_1773659882818_annotated.jpg,Annotated,"[1,3]",low,0.8,The two people are not interacting and are a reasonable distance apart.,Open,proxemics_1773659882818,Open,low
+0,proxemics_1773659882818_annotated.jpg,Annotated,"[2,3]",low,0.7,"The two people are standing near each other, but not actively interacting.",Open,proxemics_1773659882818,Open,low
+0,proxemics_1773659882818_depth.png,Depth,"[1,2]",medium,0.3,The two individuals are close and may be interacting.,Blocked,proxemics_1773659882818,Blocked,high
+0,proxemics_1773659882818_depth.png,Depth,"[1,3]",low,0.6,"The individuals are somewhat distant, suggesting a lower engagement.",Open,proxemics_1773659882818,Open,low
+0,proxemics_1773659882818_depth.png,Depth,"[2,3]",medium,0.4,"The individuals are relatively close, suggesting a possible interaction.",Blocked,proxemics_1773659882818,Open,low
+0,proxemics_1773659933135_raw.jpg,Raw,"[1,2]",low,0.7,The two people are not facing each other and are not close together.,Open,proxemics_1773659933135,Open,low
+0,proxemics_1773659933135_annotated.jpg,Annotated,"[1,2]",low,0.7,The two people are not facing each other and are not close together.,Open,proxemics_1773659933135,Open,low
+0,proxemics_1773659933135_depth.png,Depth,"[1,2]",low,0.6,"The two people are close to each other, suggesting a possible interaction.",Open,proxemics_1773659933135,Open,low
+0,sharedtask_1773660202932_raw.jpg,Raw,"[1,2]",high,0.1,The two people are actively exchanging documents.,Blocked,sharedtask_1773660202932,Blocked,high
+0,sharedtask_1773660202932_annotated.jpg,Annotated,"[1,2]",high,0.1,The two people are actively exchanging documents.,Blocked,sharedtask_1773660202932,Blocked,high
+0,sharedtask_1773660202932_depth.png,Depth,"[1,2]",high,0.1,"The two people are very close and facing each other, suggesting a conversation.",Blocked,sharedtask_1773660202932,Blocked,high
+0,sharedtask_1773660245827_raw.jpg,Raw,"[1,2]",high,0.1,People 1 and 2 are actively carrying a chair together.,Blocked,sharedtask_1773660245827,Blocked,high
+0,sharedtask_1773660245827_raw.jpg,Raw,"[1,3]",high,0.1,People 1 and 3 are actively carrying a chair together.,Blocked,sharedtask_1773660245827,Blocked,high
+0,sharedtask_1773660245827_raw.jpg,Raw,"[2,3]",high,0.1,People 2 and 3 are actively carrying a chair together.,Blocked,sharedtask_1773660245827,Blocked,high
+0,sharedtask_1773660245827_annotated.jpg,Annotated,"[1,2]",high,0.1,Individuals 1 and 2 are actively moving a chair together.,Blocked,sharedtask_1773660245827,Blocked,high
+0,sharedtask_1773660245827_annotated.jpg,Annotated,"[1,3]",high,0.1,Individuals 1 and 3 are actively moving a chair together.,Blocked,sharedtask_1773660245827,Blocked,high
+0,sharedtask_1773660245827_annotated.jpg,Annotated,"[2,3]",high,0.1,Individuals 2 and 3 are actively moving a chair together.,Blocked,sharedtask_1773660245827,Blocked,high
+0,sharedtask_1773660245827_depth.png,Depth,"[1,2]",medium,0.3,"People 1 and 2 are close and oriented towards each other, suggesting a conversation.",Blocked,sharedtask_1773660245827,Blocked,high
+0,sharedtask_1773660245827_depth.png,Depth,"[1,3]",medium,0.3,"People 1 and 3 are close and oriented towards each other, suggesting a conversation.",Blocked,sharedtask_1773660245827,Blocked,high
+0,sharedtask_1773660245827_depth.png,Depth,"[2,3]",medium,0.3,"People 2 and 3 are close and oriented towards each other, suggesting a conversation.",Blocked,sharedtask_1773660245827,Blocked,high

@@ -8,17 +8,16 @@ import seaborn as sns
 from sklearn.metrics import confusion_matrix
 
 
-VLM_RESULTS_DIR = "/home/aesmaeily/ros2_ws/src/yahboom_rosmaster/dataset_images/generate_labels/eval_test/vlm_csvs"
-GROUND_TRUTH_CSV = "/home/aesmaeily/ros2_ws/src/yahboom_rosmaster/dataset_images/generate_labels/eval_test/ground_truth_template.csv"
-OUTPUT_MARGED_CSV = "/home/aesmaeily/ros2_ws/src/yahboom_rosmaster/dataset_images/generate_labels/eval_test/merged_results.csv"
+VLM_RESULTS_DIR = "/home/aesmaeily/ros2_ws/src/yahboom_rosmaster/dataset_images/dev_set/dev_csv_results"
+GROUND_TRUTH_CSV = "/home/aesmaeily/ros2_ws/src/yahboom_rosmaster/dataset_images/dev_set/dev_csv_results/ground_truth_template_devset.csv"
+OUTPUT_MARGED_CSV = "/home/aesmaeily/ros2_ws/src/yahboom_rosmaster/dataset_images/dev_set/dev_csv_results/merged_results7.csv"
 
-OUTPUT_MATRIX_RAW = "/home/aesmaeily/ros2_ws/src/yahboom_rosmaster/dataset_images/generate_labels/eval_test/matrix_decision_raw.png"
-OUTPUT_MATRIX_ANNOTATED = "/home/aesmaeily/ros2_ws/src/yahboom_rosmaster/dataset_images/generate_labels/eval_test/matrix_decision_annotated.png"
-OUTPUT_MATRIX_DEPTH = "/home/aesmaeily/ros2_ws/src/yahboom_rosmaster/dataset_images/generate_labels/eval_test/matrix_decision_depth.png"
-STATS_CSV_PAIR = "/home/aesmaeily/ros2_ws/src/yahboom_rosmaster/dataset_images/generate_labels/eval_test/accuracy_stats_pair.csv"
-OUTPUT_PLOT_PAIR = "/home/aesmaeily/ros2_ws/src/yahboom_rosmaster/dataset_images/generate_labels/eval_test/accuracy_chart_pair.png"
-
-OUTPUT_PLOT_DIST = "/home/aesmaeily/ros2_ws/src/yahboom_rosmaster/dataset_images/generate_labels/eval_test/distribution_box_swarm.png"
+OUTPUT_MATRIX_RAW = "/home/aesmaeily/ros2_ws/src/yahboom_rosmaster/dataset_images/dev_set/dev_csv_results/matrix_decision_raw7.png"
+OUTPUT_MATRIX_ANNOTATED = "/home/aesmaeily/ros2_ws/src/yahboom_rosmaster/dataset_images/dev_set/dev_csv_results/matrix_decision_annotated7.png"
+OUTPUT_MATRIX_DEPTH = "/home/aesmaeily/ros2_ws/src/yahboom_rosmaster/dataset_images/dev_set/dev_csv_results/matrix_decision_depth7.png"
+STATS_CSV_PAIR = "/home/aesmaeily/ros2_ws/src/yahboom_rosmaster/dataset_images/dev_set/dev_csv_results/accuracy_stats_pair7.csv"
+OUTPUT_PLOT_PAIR = "/home/aesmaeily/ros2_ws/src/yahboom_rosmaster/dataset_images/dev_set/dev_csv_results/accuracy_chart_pair7.png"
+OUTPUT_PLOT_DIST = "/home/aesmaeily/ros2_ws/src/yahboom_rosmaster/dataset_images/dev_set/dev_csv_results/distribution_box_swarm7.png"
 
 def export_statistics_report(dataframe, output_path):
     report_data = []
@@ -27,7 +26,7 @@ def export_statistics_report(dataframe, output_path):
         if subset.empty: continue
         
         total_predictions = len(subset)
-        correct_predictions = len(subset[subset['Actual_Status'] == subset['Predicted_Decision']])
+        correct_predictions = len(subset[subset['Actual_Status'] == subset['Ground_Truth_Decision']])
         overall_acc = (correct_predictions / total_predictions) * 100 if total_predictions > 0 else 0
         
         report_data.append({
@@ -49,7 +48,7 @@ def plot_accuracy_comparison(dataframe, output_path):
         if subset.empty: continue
         
         total = len(subset)
-        correct = len(subset[subset['Actual_Status'] == subset['Predicted_Decision']])
+        correct = len(subset[subset['Actual_Status'] == subset['Ground_Truth_Decision']])
         acc = (correct / total) * 100 if total > 0 else 0
         data.append({'Image Type': image_type, 'Navigation Accuracy (%)': acc})
             
@@ -76,7 +75,7 @@ def plot_confusion_matrix(dataframe, title, output_path):
     if dataframe.empty: return
     
     y_true = dataframe['Actual_Status'].astype(str)
-    y_pred = dataframe['Predicted_Decision'].astype(str)
+    y_pred = dataframe['Ground_Truth_Decision'].astype(str)
     
     labels = ['Blocked', 'Open']
     
@@ -158,7 +157,7 @@ def plot_distribution_box_swarm(dataframe, output_path):
         order=['Raw', 'Annotated', 'Depth']
     )
     
-    plt.title('The results of 10 times running of VLM Social Navigation Decision', fontsize=16, fontweight='bold', pad=15)
+    plt.title('The results of VLM Social Navigation Decision', fontsize=16, fontweight='bold', pad=15)
     plt.xlabel('VLM Input Modality of RAW Annotated and Depth', fontsize=14, labelpad=10)
     plt.ylabel('Predicted of Crossabilities', fontsize=14, labelpad=10)
     plt.ylim(-0.05, 1.05)
@@ -177,18 +176,19 @@ def run_evaluation():
         return
         
     # NEW MERGE LOGIC: Find all CSVs in the directory and concatenate them
-    if not os.path.exists(VLM_RESULTS_DIR):
-        print(f"ERROR: VLM results directory not found at {VLM_RESULTS_DIR}")
-        return
+    # if not os.path.exists(VLM_RESULTS_DIR):
+    #     print(f"ERROR: VLM results directory not found at {VLM_RESULTS_DIR}")
+    #     return
         
-    all_csv_files = glob.glob(os.path.join(VLM_RESULTS_DIR, "*.csv"))
-    if not all_csv_files:
-        print(f"ERROR: No CSV files found in {VLM_RESULTS_DIR}")
-        return
+    # all_csv_files = glob.glob(os.path.join(VLM_RESULTS_DIR, "*.csv"))
+    # if not all_csv_files:
+    #     print(f"ERROR: No CSV files found in {VLM_RESULTS_DIR}")
+    #     return
         
-    print(f"Found {len(all_csv_files)} VLM prediction CSV files. Merging...")
-    df_list = [pd.read_csv(f) for f in all_csv_files]
-    df_vlm = pd.concat(df_list, ignore_index=True)
+    # print(f"Found {len(all_csv_files)} VLM prediction CSV files. Merging...")
+    # df_list = [pd.read_csv(f) for f in all_csv_files]
+    # df_vlm = pd.concat(df_list, ignore_index=True)
+    df_vlm = pd.read_csv(os.path.join(VLM_RESULTS_DIR, "VLM7_predictions_run_0.csv"))     #--- CHANGE THIS TO MATCH YOUR VLM OUTPUT FILENAME
 
     df_clean = df_vlm[df_vlm['Image_Type'] != 'ERROR'].copy()
     if df_clean.empty: 
@@ -196,7 +196,7 @@ def run_evaluation():
         return
 
     # 1. Convert probability to binary decision
-    df_clean['Predicted_Decision'] = df_clean['Predicted_Crossability'].apply(lambda x: 'Blocked' if float(x) <= 0.5 else 'Open')
+    df_clean['Ground_Truth_Decision'] = df_clean['Predicted_Crossability'].apply(lambda x: 'Blocked' if float(x) <= 0.5 else 'Open')
 
     # 2. Self-Healing Data Cleaner for Ground Truth
     gt_df = pd.read_csv(GROUND_TRUTH_CSV)
@@ -245,6 +245,7 @@ def run_evaluation():
         subset = df_merged[df_merged['Image_Type'] == img_type]
         if not subset.empty:
             plot_confusion_matrix(subset, f'Confusion Matrix ({img_type})', output_path)
+    #plot_confusion_matrix(df_merged, 'Overall Confusion Matrix', OUTPUT_MATRIX_RAW)
             
     # CALL NEW BOXPLOT FUNCTION
     plot_distribution_box_swarm(df_merged, OUTPUT_PLOT_DIST)

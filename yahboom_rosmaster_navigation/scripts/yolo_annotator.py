@@ -9,7 +9,7 @@ DATASET_DIR = "/home/aesmaeily/ros2_ws/src/yahboom_rosmaster/dataset_images/dev_
 
 # Load YOLOv8 (The 'n' stands for nano - it's fast and will download automatically the first time)
 print("Loading YOLO11-Pose Model...")
-model = YOLO('yolo11n-pose.pt') 
+model = YOLO('yolo11s-pose.pt') 
 
 def process_offline_dataset():
     # Find all the raw images you recorded in the lab
@@ -32,7 +32,7 @@ def process_offline_dataset():
 
         annotated_img = img.copy()
         # Run YOLO inference
-        results = model(img, verbose=False)
+        results = model(img, conf=0.60, classes=[0], verbose=False)
         
         # Extract the bounding boxes
         human_boxes = []
