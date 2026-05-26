@@ -3,7 +3,7 @@
 NODE 1: YOLOv8-Pose Detector (Depth Image Version)
 ==================================================
 1. Subscribes to RGB Image AND Depth Image (aligned).
-2. YOLOv8-Pose: Finds perfect full-body bounding boxes AND skeletal joints.
+2. YOLO11s-Pose: Finds perfect full-body bounding boxes AND skeletal joints.
 3. Depth Lookup: Reads the exact distance Z from the chest (u,v).
 4. Deprojection: Calculates real world X, Y using Camera Math.
 5. Publishes: Real 3D coordinates to /detected_humans and boxes to /annotated_image.
@@ -125,7 +125,8 @@ class YOLOPoseDetector(Node):
                 confs = results[0].keypoints.conf.cpu().numpy()
 
                 for i in range(len(boxes)):
-                    if int(classes[i]) != 0: continue # YOLO Class 0 is 'person'
+                    if int(classes[i]) != 0: 
+                        continue # YOLO Class 0 is 'person'
 
                     # 1. THE PERFECT BOUNDING BOX (No padding math needed!)
                     x_min, y_min, x_max, y_max = map(int, boxes[i])

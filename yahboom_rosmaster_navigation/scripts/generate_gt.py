@@ -66,7 +66,7 @@ def generate_annotation_template(image_dir, output_file):
     print(f"Total rows: {processed_count * 6}. Order: Scene -> Raw -> Annotated -> Depth.")
 
 # Paths
-IMAGE_DIRECTORY = '/home/aesmaeily/ros2_ws/src/yahboom_rosmaster/dataset_images/dev_set' 
-OUTPUT_CSV_NAME = '/home/aesmaeily/ros2_ws/src/yahboom_rosmaster/dataset_images/dev_set/ground_truth_template_devset.csv'
+IMAGE_DIRECTORY = '/media/abolghasem/51AC-250D/test_set/Final_test_set' 
+OUTPUT_CSV_NAME = '/media/abolghasem/51AC-250D/test_set/Final_test_set/ground_truth_template_by_researcher.csv'
 
 generate_annotation_template(IMAGE_DIRECTORY, OUTPUT_CSV_NAME)

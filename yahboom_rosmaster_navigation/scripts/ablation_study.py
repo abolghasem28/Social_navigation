@@ -8,16 +8,16 @@ import seaborn as sns
 from sklearn.metrics import confusion_matrix
 
 
-VLM_RESULTS_DIR = "/home/aesmaeily/ros2_ws/src/yahboom_rosmaster/dataset_images/dev_set/dev_csv_results"
-GROUND_TRUTH_CSV = "/home/aesmaeily/ros2_ws/src/yahboom_rosmaster/dataset_images/dev_set/dev_csv_results/ground_truth_template_devset.csv"
-OUTPUT_MARGED_CSV = "/home/aesmaeily/ros2_ws/src/yahboom_rosmaster/dataset_images/dev_set/dev_csv_results/merged_results7.csv"
+VLM_RESULTS_DIR = "/media/abolghasem/51AC-250D/project work/src/yahboom_rosmaster/dataset_images/dev_set/dev_suggest_prompt_results"
+GROUND_TRUTH_CSV = "/media/abolghasem/51AC-250D/project work/src/yahboom_rosmaster/dataset_images/dev_set/dev_csv_results/ground_truth_template_devset.csv"
+OUTPUT_MARGED_CSV = "/media/abolghasem/51AC-250D/project work/src/yahboom_rosmaster/dataset_images/dev_set/dev_suggest_prompt_results/merged_results_SU_D.csv"
 
-OUTPUT_MATRIX_RAW = "/home/aesmaeily/ros2_ws/src/yahboom_rosmaster/dataset_images/dev_set/dev_csv_results/matrix_decision_raw7.png"
-OUTPUT_MATRIX_ANNOTATED = "/home/aesmaeily/ros2_ws/src/yahboom_rosmaster/dataset_images/dev_set/dev_csv_results/matrix_decision_annotated7.png"
-OUTPUT_MATRIX_DEPTH = "/home/aesmaeily/ros2_ws/src/yahboom_rosmaster/dataset_images/dev_set/dev_csv_results/matrix_decision_depth7.png"
-STATS_CSV_PAIR = "/home/aesmaeily/ros2_ws/src/yahboom_rosmaster/dataset_images/dev_set/dev_csv_results/accuracy_stats_pair7.csv"
-OUTPUT_PLOT_PAIR = "/home/aesmaeily/ros2_ws/src/yahboom_rosmaster/dataset_images/dev_set/dev_csv_results/accuracy_chart_pair7.png"
-OUTPUT_PLOT_DIST = "/home/aesmaeily/ros2_ws/src/yahboom_rosmaster/dataset_images/dev_set/dev_csv_results/distribution_box_swarm7.png"
+OUTPUT_MATRIX_RAW = "/media/abolghasem/51AC-250D/project work/src/yahboom_rosmaster/dataset_images/dev_set/dev_suggest_prompt_results/matrix_decision_raw_SU_D.png"
+OUTPUT_MATRIX_ANNOTATED = "/media/abolghasem/51AC-250D/project work/src/yahboom_rosmaster/dataset_images/dev_set/dev_suggest_prompt_results/matrix_decision_annotated_SU_D.png"
+#OUTPUT_MATRIX_DEPTH = "/media/abolghasem/51AC-250D/project work/src/yahboom_rosmaster/dataset_images/dev_set/dev_suggest_prompt_results/matrix_decision_depth_SU_D.png"
+STATS_CSV_PAIR = "/media/abolghasem/51AC-250D/project work/src/yahboom_rosmaster/dataset_images/dev_set/dev_suggest_prompt_results/accuracy_stats_pair_SU_D.csv"
+OUTPUT_PLOT_PAIR = "/media/abolghasem/51AC-250D/project work/src/yahboom_rosmaster/dataset_images/dev_set/dev_suggest_prompt_results/accuracy_chart_pair_SU_D.png"
+OUTPUT_PLOT_DIST = "/media/abolghasem/51AC-250D/project work/src/yahboom_rosmaster/dataset_images/dev_set/dev_suggest_prompt_results/distribution_box_swarm_SU_D.png"
 
 def export_statistics_report(dataframe, output_path):
     report_data = []
@@ -43,7 +43,7 @@ def export_statistics_report(dataframe, output_path):
 def plot_accuracy_comparison(dataframe, output_path):
     if dataframe.empty: return
     data = []
-    for image_type in ['Raw', 'Annotated', 'Depth']:
+    for image_type in ['Raw', 'Annotated']:
         subset = dataframe[dataframe['Image_Type'] == image_type]
         if subset.empty: continue
         
@@ -128,7 +128,7 @@ def plot_distribution_box_swarm(dataframe, output_path):
     plt.figure(figsize=(10, 7))
     sns.set_theme(style="whitegrid")
     
-    box_palette = {"Raw": "#7a378a", "Annotated": "#207736", "Depth": "#4E4A46"}
+    box_palette = {"Raw": "#7a378a", "Annotated": "#207736"}
     
     # FIX 1: Add hue='Image_Type' and legend=False for the new Seaborn update
     sns.boxplot(
@@ -140,7 +140,7 @@ def plot_distribution_box_swarm(dataframe, output_path):
         palette=box_palette,
         showfliers=False, 
         boxprops=dict(alpha=0.4),
-        order=['Raw', 'Annotated', 'Depth']
+        order=['Raw', 'Annotated']
     )
     
     # FIX 2: Change swarmplot to stripplot with jitter=True to handle massive data
@@ -154,11 +154,11 @@ def plot_distribution_box_swarm(dataframe, output_path):
         jitter=True, 
         size=4, 
         alpha=0.6, 
-        order=['Raw', 'Annotated', 'Depth']
+        order=['Raw', 'Annotated' ]
     )
     
     plt.title('The results of VLM Social Navigation Decision', fontsize=16, fontweight='bold', pad=15)
-    plt.xlabel('VLM Input Modality of RAW Annotated and Depth', fontsize=14, labelpad=10)
+    plt.xlabel('VLM Input Modality of RAW Annotated', fontsize=14, labelpad=10)
     plt.ylabel('Predicted of Crossabilities', fontsize=14, labelpad=10)
     plt.ylim(-0.05, 1.05)
     
@@ -188,7 +188,7 @@ def run_evaluation():
     # print(f"Found {len(all_csv_files)} VLM prediction CSV files. Merging...")
     # df_list = [pd.read_csv(f) for f in all_csv_files]
     # df_vlm = pd.concat(df_list, ignore_index=True)
-    df_vlm = pd.read_csv(os.path.join(VLM_RESULTS_DIR, "VLM7_predictions_run_0.csv"))     #--- CHANGE THIS TO MATCH YOUR VLM OUTPUT FILENAME
+    df_vlm = pd.read_csv(os.path.join(VLM_RESULTS_DIR, "VLM_SU_D_predictions_run_0.csv"))     #--- CHANGE THIS TO MATCH YOUR VLM OUTPUT FILENAME
 
     df_clean = df_vlm[df_vlm['Image_Type'] != 'ERROR'].copy()
     if df_clean.empty: 
@@ -222,6 +222,8 @@ def run_evaluation():
     gt_lookup = gt_df[['Base_Scene', 'Pair', 'Actual_Status', 'Level_Engagement']].drop_duplicates(subset=['Base_Scene', 'Pair'])
     df_merged = pd.merge(df_clean, gt_lookup, on=['Base_Scene', 'Pair'], how='inner')
 
+    # LOOK: Filter to only Raw and Annotated for the pair-level analysis
+    df_merged = df_merged[df_merged['Image_Type'].isin(['Raw', 'Annotated'])].copy()
     df_merged.to_csv(OUTPUT_MARGED_CSV, index=False)
     print(f"---> Merged VLM predictions saved to: {OUTPUT_MARGED_CSV}")
 
@@ -239,9 +241,7 @@ def run_evaluation():
     
     for img_type, output_path in [
         ('Raw', OUTPUT_MATRIX_RAW),
-        ('Annotated', OUTPUT_MATRIX_ANNOTATED),
-        ('Depth', OUTPUT_MATRIX_DEPTH)
-    ]:
+        ('Annotated', OUTPUT_MATRIX_ANNOTATED)]:
         subset = df_merged[df_merged['Image_Type'] == img_type]
         if not subset.empty:
             plot_confusion_matrix(subset, f'Confusion Matrix ({img_type})', output_path)

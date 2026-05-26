@@ -10,76 +10,66 @@ from PIL import Image
 # ==========================================
 # 1. CONFIGURATION
 # ==========================================
-GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", '')
+GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "AIzaSyCeOR_FVpA_sebtTmeMY7AStm2c6MlWzS4")
 genai.configure(api_key=GEMINI_API_KEY)
 model = genai.GenerativeModel('gemini-2.0-flash')
 
-IMAGE_FOLDER = "/home/aesmaeily/ros2_ws/src/yahboom_rosmaster/dataset_images/dev_set"
-OUTPUT_CSV = "/home/aesmaeily/ros2_ws/src/yahboom_rosmaster/dataset_images/dev_set/dev_csv_results/VLM7_predictions.csv"
+IMAGE_FOLDER = "/media/abolghasem/51AC-250D/test_set/Final_test_set"
+OUTPUT_CSV = "/media/abolghasem/51AC-250D/test_set/Final_test_set/VLM_SU_D_predictions.csv"
 
 # ==========================================
 # 2. PROMPTS
 # ==========================================
 PROMPT_ANNOTATED = """
-You are the vision system for a social navigation robot analyzing humans marked with numbered bounding boxes.
-The image has bounding boxes that identify people with IDs starting from 1.
+You are the vision system for a social navigation robot analyzing a camera image where humans are marked with numbered bounding boxes identifying people with IDs starting from 1.
 
-People in the scene may be involved in different types of activity, some proximate (physically 
-close, directly engaging with each other) and some remote (spatially offset but still part of 
-the same shared activity). The robot must not disturb any ongoing activity, regardless of 
-whether the people involved are facing each other or physically close.
+People in the scene may be involved in different types of activity, some proximate (physically close, directly engaging) and some remote (spatially offset but still part of the same shared activity). The robot must not disturb any ongoing activity regardless of physical proximity.
 
 STEP 1 — Classify the scene type BEFORE evaluating any pairs:
-- FULL-GROUP: All people share one collective activity. → ALL pairs are Blocked (robot_can_cross ≤ 0.2).
-  Once classified as FULL-GROUP, do NOT re-evaluate individual pairs, lack of direct 
-  face-to-face contact between two specific members does NOT make them Open.
-- PARTIAL-GROUP: Some people share an activity, others do not. Evaluate each pair 
-  individually based on whether they are actively engaged with each other.
+
+- FULL-GROUP: All people in the scene share one collective activity. ALL pairs are Blocked (robot_can_cross ≤ 0.2). Once classified as FULL-GROUP, do NOT re-evaluate individual pairs, lack of direct face-to-face contact between two specific members does NOT make them Open. If a subset of people are already identified as an interacting group, any other person present and oriented toward that group is also part of it. A person being spatially distant alone does NOT exclude them from the group.
+- PARTIAL-GROUP: Some people share an activity, others do not. Evaluate each pair individually based on whether they are actively engaged with each other.
 
 STEP 2 — Evaluate every unique pair according to the scene type above.
-Use the spatial arrangement and proximity of bounding boxes to identify group clusters.
+Use body orientation, gaze direction, and physical proximity between people to infer group membership.
 
 RULES:
-- A social boundary exists if the two individuals are part of the same ongoing activity,
-  whether they are directly interacting or jointly engaged from a distance.
+- A social boundary exists if the two individuals are part of the same ongoing activity, whether they are directly interacting or jointly engaged from a distance.
+- If multiple individuals are collectively engaged in the same activity, ALL pairs within that group have a social boundary — even if two specific members are not directly facing each other.
 - If there is 0 or 1 person in the image, return an empty array: {"social_links": []}
 - Evaluate every single unique combination of IDs as a separate pair (e.g., [1,2], [1,3], [2,3]).
 
 Return a strict JSON object with one array named "social_links". For each pair, provide:
 1. "pair": A list of exactly two human IDs in ascending order (e.g., [1, 2]).
 2. "engagement": ["low", "medium", "high"].
-3. "robot_can_cross": Float probability (0.0 to 1.0). 0.0 = absolutely cannot cross, 1.0 = completely safe.
+3. "robot_can_cross": Float Crossability (0.0 to 1.0). 0.0 = absolutely cannot cross, 1.0 = completely Open can cross.
 4. "reason": One short sentence explaining why.
 """
 
 PROMPT_RAW = """
 You are the vision system for a social navigation robot analyzing a camera image.
-Silently identify the humans from LEFT to RIGHT and assign them IDs starting from 1.
+Silently identify the humans from LEFT to RIGHT and assign them IDs starting from 1 (leftmost = ID 1).
 
-People in the scene may be involved in different types of activity, some proximate (physically 
-close, directly engaging with each other) and some remote (spatially offset but still part of 
-the same shared activity). The robot must not disturb any ongoing activity, regardless of 
-whether the people involved are facing each other or physically close.
+People in the scene may be involved in different types of activity, some proximate (physically close, directly engaging) and some remote (spatially offset but still part of the same shared activity). The robot must not disturb any ongoing activity regardless of physical proximity.
 
 STEP 1 — Classify the scene type BEFORE evaluating any pairs:
-- FULL-GROUP: All people share one collective activity. → ALL pairs are Blocked (robot_can_cross ≤ 0.2).
-  Once classified as FULL-GROUP, do NOT re-evaluate individual pairs, lack of direct 
-  face-to-face contact between two specific members does NOT make them Open.
-- PARTIAL-GROUP: Some people share an activity, others do not. Evaluate each pair 
-  individually based on whether they are actively engaged with each other.
+
+- FULL-GROUP: All people in the scene share one collective activity. ALL pairs are Blocked (robot_can_cross ≤ 0.2). Once classified as FULL-GROUP, do NOT re-evaluate individual pairs, lack of direct face-to-face contact between two specific members does NOT make them Open. If a subset of people are already identified as an interacting group, any other person present and oriented toward that group is also part of it. A person being spatially distant alone does NOT exclude them from the group.
+- PARTIAL-GROUP: Some people share an activity, others do not. Evaluate each pair individually based on whether they are actively engaged with each other.
 
 STEP 2 — Evaluate every unique pair according to the scene type above.
+Use body orientation, gaze direction, and physical proximity between people to infer group membership.
 
 RULES:
-- A social boundary exists if the two individuals are part of the same ongoing activity,
-  whether they are directly interacting or jointly engaged from a distance.
+- A social boundary exists if the two individuals are part of the same ongoing activity, whether they are directly interacting or jointly engaged from a distance.
+- If multiple individuals are collectively engaged in the same activity, ALL pairs within that group have a social boundary, even if two specific members are not directly facing each other.
 - If there is 0 or 1 person in the image, return an empty array: {"social_links": []}
-- Evaluate every single unique combination of IDs as a separate pair.
+- Evaluate every single unique combination of IDs as a separate pair (e.g., [1,2], [1,3], [2,3]).
 
 Return a strict JSON object with one array named "social_links". For each pair, provide:
 1. "pair": A list of exactly two human IDs in ascending order (e.g., [1, 2]).
 2. "engagement": ["low", "medium", "high"].
-3. "robot_can_cross": Float probability (0.0 to 1.0). 0.0 = absolutely cannot cross, 1.0 = completely safe.
+3. "robot_can_cross": Float Crossability (0.0 to 1.0). 0.0 = absolutely cannot cross, 1.0 = completely Open can cross.
 4. "reason": One short sentence explaining why.
 """
 
@@ -96,7 +86,7 @@ RULES:
 Return a strict JSON object with one array named "social_links". For each pair, provide:
 1. "pair": A list of exactly two human IDs in ascending order (e.g., [1, 2]).
 2. "engagement": ["low", "medium", "high"].
-3. "robot_can_cross": Float probability (0.0 to 1.0).  0.0 = absolutely cannot cross, 1.0 = completely safe.
+3. "robot_can_cross": Float Crossability (0.0 to 1.0).  0.0 = absolutely cannot cross, 1.0 = completely Open can cross.
 4. "reason": One short sentence explaining why.
 """
 
