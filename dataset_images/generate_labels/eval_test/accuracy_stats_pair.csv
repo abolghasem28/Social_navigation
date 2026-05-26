@@ -1,4 +1,0 @@
-Image_Type,Category,Total_Evaluated,Correct_Predictions,Accuracy_Percentage
-Raw,OVERALL_PAIR_DECISION,396,233,58.8
-Annotated,OVERALL_PAIR_DECISION,396,239,60.4
-Depth,OVERALL_PAIR_DECISION,253,152,60.1
