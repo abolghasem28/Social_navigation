@@ -4,7 +4,7 @@
 # Usage: ./launch_gemini_detector.sh (No argument needed if key is hardcoded)
 
 # --- HARDCODED KEY ---
-export GEMINI_API_KEY=""
+export GEMINI_API_KEY="AIzaSyCeOR_FVpA_sebtTmeMY7AStm2c6MlWzS4"
 # ---------------------
 
 
@@ -15,14 +15,15 @@ echo ""
 #source /opt/ros/jazzy/setup.bash
 
 # The path to Conda Python interpreter
-#CONDA_PYTHON="/home/aesmaeily/anaconda3/envs/gemini_env/bin/python"
+CONDA_PYTHON="/home/abolghasem/ros2_ws/vir_env/bin/python"
 
 
 # Run the node
-python3 /home/aesmaeily/ros2_ws/src/yahboom_rosmaster/yahboom_rosmaster_navigation/scripts/social_navigation.py \
+#$CONDA_PYTHON  /home/aesmaeily/ros2_ws/src/yahboom_rosmaster/yahboom_rosmaster_navigation/scripts/social_navigation.py \
 #python3 /home/aesmaeily/ros2_ws/src/yahboom_rosmaster/yahboom_rosmaster_navigation/scripts/social_navigation_hybridsim.py \
 #python3 /home/aesmaeily/ros2_ws/src/yahboom_rosmaster/yahboom_rosmaster_navigation/scripts/social_navigation_hybridreal.py \
 #$CONDA_PYTHON /home/aesmaeily/ros2_ws/src/yahboom_rosmaster/yahboom_rosmaster_navigation/scripts/gemini_analyse.py \
+$CONDA_PYTHON /home/aesmaeily/ros2_ws/src/yahboom_rosmaster/yahboom_rosmaster_navigation/scripts/gemini_analyse_gt.py \
 
     --ros-args \
     -p gemini_api_key:="$GEMINI_API_KEY" 
