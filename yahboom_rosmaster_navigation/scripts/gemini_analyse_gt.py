@@ -10,7 +10,7 @@ from PIL import Image
 # ==========================================
 # 1. CONFIGURATION
 # ==========================================
-GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "AIzaSyCeOR_FVpA_sebtTmeMY7AStm2c6MlWzS4")
+GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "YOUR_API_KEY_HERE")
 genai.configure(api_key=GEMINI_API_KEY)
 model = genai.GenerativeModel('gemini-2.0-flash')
 
