@@ -4,7 +4,7 @@
 # Usage: ./launch_gemini_detector.sh (No argument needed if key is hardcoded)
 
 # --- HARDCODED KEY ---
-export GEMINI_API_KEY="AIzaSyCV8jD47LulMWxcuYNfu10P40rMgiQB2ts"
+export GEMINI_API_KEY="YOUR_GEMINI_API_KEY"
 # ---------------------
 
 
