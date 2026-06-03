@@ -14,15 +14,15 @@ Activate conda environment
 In terminal 1:
 ros2 launch realsense2_camera rs_launch.py pointcloud.enable:=true align_depth.enable:=true
 
-In terminal 2:
-python3 /home/aesmaeily/ros2_ws/src/yahboom_rosmaster/yahboom_rosmaster_navigation/scripts/yolo_detector.py
+# In terminal 2:
+# python3 /home/aesmaeily/ros2_ws/src/yahboom_rosmaster/yahboom_rosmaster_navigation/scripts/yolo_detector.py
 
 Author: Abolghasem Esmaeily
 """
 
 import rclpy
 from rclpy.node import Node
-from rclpy.qos import QoSProfile, ReliabilityPolicy, HistoryPolicy
+from rclpy.qos import QoSProfile, ReliabilityPolicy, HistoryPolicy, DurabilityPolicy
 from sensor_msgs.msg import Image, CameraInfo
 from geometry_msgs.msg import PoseArray, Pose
 from cv_bridge import CvBridge
@@ -53,7 +53,7 @@ class YOLOPoseDetector(Node):
         qos_profile = QoSProfile(
             reliability=ReliabilityPolicy.RELIABLE,
             history=HistoryPolicy.KEEP_LAST,
-            depth=10
+            depth=10,
         )
         
         # PUBLISHERS
@@ -115,12 +115,13 @@ class YOLOPoseDetector(Node):
             annotated_cv = cv_img.copy()
 
             # RUN YOLO-POSE INFERENCE
-            results = self.detector(cv_img, conf = 0.60, classes=[0], verbose=False)
+            results = self.detector(cv_img, conf = 0.40, classes=[0], verbose=False)
             valid_people = []
 
             if len(results) > 0 and results[0].keypoints is not None:
                 boxes = results[0].boxes.xyxy.cpu().numpy()
                 classes = results[0].boxes.cls.cpu().numpy()
+                box_confs = results[0].boxes.conf.cpu().numpy()
                 keypoints = results[0].keypoints.xy.cpu().numpy()
                 confs = results[0].keypoints.conf.cpu().numpy()
 
@@ -130,13 +131,14 @@ class YOLOPoseDetector(Node):
 
                     # 1. THE PERFECT BOUNDING BOX (No padding math needed!)
                     x_min, y_min, x_max, y_max = map(int, boxes[i])
+                    box_conf = float(box_confs[i])
 
                     # 2. THE LOCALIZATION POINT (Chest Center)
                     # YOLO COCO format: index 5 is Left Shoulder, index 6 is Right Shoulder
                     l_shoulder = keypoints[i][5]
                     r_shoulder = keypoints[i][6]
-                    l_conf = confs[i][5]
-                    r_conf = confs[i][6]
+                    l_conf = float(confs[i][5])
+                    r_conf = float(confs[i][6])
 
                     if l_conf > 0.4 and r_conf > 0.4:
                         u = int((l_shoulder[0] + r_shoulder[0]) / 2.0)
@@ -149,7 +151,14 @@ class YOLOPoseDetector(Node):
                     u = max(0, min(u, img_w - 1))
                     v = max(0, min(v, img_h - 1))
 
-                    valid_people.append({'u': u, 'v': v, 'bbox': (x_min, y_min, x_max, y_max)})
+                    valid_people.append({
+                        'u': u,
+                        'v': v,
+                        'bbox': (x_min, y_min, x_max, y_max),
+                        'box_conf': box_conf,
+                        'l_conf': l_conf,
+                        'r_conf': r_conf,
+                    })
 
             # SORT FROM LEFT TO RIGHT (Critical for Gemini Prompt!)
             valid_people.sort(key=lambda person: person['bbox'][0]) 
@@ -189,6 +198,12 @@ class YOLOPoseDetector(Node):
                     
                     p = Pose()
                     p.position.x, p.position.y, p.position.z = float(X), float(Y), float(Z)
+                    # Reuse Pose.orientation to publish detector metadata without changing message types:
+                    # x = YOLO box confidence, y/z = left/right shoulder confidence, w = primary display confidence.
+                    p.orientation.x = float(person['box_conf'])
+                    p.orientation.y = float(person['l_conf'])
+                    p.orientation.z = float(person['r_conf'])
+                    p.orientation.w = float(person['box_conf'])
                     pose_msg.poses.append(p)
 
             #if len(pose_msg.poses) > 0:

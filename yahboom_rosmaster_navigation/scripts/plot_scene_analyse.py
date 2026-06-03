@@ -243,16 +243,18 @@ def generate_gt_comparison_plot(df_master, gt_csv_path, output_path):
 
     # Stats per group
     order = ['Blocked', 'Open']
-    # results = {}
-    # for status in order:
-    #     grp = merged[merged['Actual_Status'] == status]
-    #     h = grp[grp['Source'] == 'Human']['Score']
-    #     r = grp[grp['Source'] == 'Robot']['Score']
-    #     _, p = stats.mannwhitneyu(h, r, alternative='two-sided')
-    #     results[status] = {'h_mean': h.mean(), 'r_mean': r.mean(), 'p': p}
-    #     print(f"GT {status}: Human μ={h.mean():.3f}, Robot μ={r.mean():.3f}, p={p:.4f}")
-
-
+    print("\nMean + SD for four conditions (Blocked/Open × Human/Robot):")
+    print("="*60)
+    for status in order:
+        for src in ['Human', 'Robot']:
+            grp = merged[(merged['Actual_Status'] == status) & (merged['Source'] == src)]['Score']
+            print(f"{status} / {src}: "
+              f"mean={grp.mean():.3f}, "
+              f"SD={grp.std():.3f}, "
+              f"N={len(grp)}")
+            
+    
+            
     palette = {'Human': '#4169E1', 'Robot': '#FF8C00'}
     # Removed grid parameters (1, 2) to yield a single Axes object
     fig, ax_gt = plt.subplots(figsize=(10, 7))
@@ -299,13 +301,6 @@ def generate_gt_comparison_plot(df_master, gt_csv_path, output_path):
                 ha='center', fontsize=9, color='#222222',
                 style='italic', fontweight='bold')
         
-    # p_value
-    # for i, status in enumerate(order):
-    #     p = results[status]['p']
-    #     sig = '***' if p < 0.001 else ('**' if p < 0.01 else ('*' if p < 0.05 else 'n.s.'))
-    #     ax_gt.plot([i - 0.22, i - 0.22, i + 0.22, i + 0.22],
-    #             [1.07, 1.10, 1.10, 1.07], color='black', lw=1.1)
-    #     ax_gt.text(i, 1.11, f'p={p:.3f} ({sig})', ha='center', fontsize=10)
 
     
     # Formating

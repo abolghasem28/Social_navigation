@@ -167,6 +167,7 @@ class SocialNavigator(Node):
         self.declare_parameter('gemini_retry_delay_sec', 2.0)
         self.declare_parameter('tracker_ttl_sec', 5.0)
         self.declare_parameter('social_obstacle_ttl_sec', 5.0)
+        self.declare_parameter('red_wall_hold_sec', 30.0)
         self.declare_parameter('visible_human_conf_threshold', 0.6)
         self.declare_parameter('visible_human_grace_sec', 0.5)
         self.api_key = self.get_parameter('gemini_api_key').value
@@ -190,6 +191,9 @@ class SocialNavigator(Node):
         self.social_obstacle_ttl_sec = max(
             0.0, float(self.get_parameter('social_obstacle_ttl_sec').value)
         )
+        self.red_wall_hold_sec = max(
+            0.0, float(self.get_parameter('red_wall_hold_sec').value)
+        )
         self.visible_human_conf_threshold = float(
             self.get_parameter('visible_human_conf_threshold').value
         )
@@ -197,7 +201,10 @@ class SocialNavigator(Node):
             0.0, float(self.get_parameter('visible_human_grace_sec').value)
         )
         self.transform_cache_ttl_sec = max(
-            5.0, self.tracker_ttl_sec, self.social_obstacle_ttl_sec
+            5.0,
+            self.tracker_ttl_sec,
+            self.social_obstacle_ttl_sec,
+            self.red_wall_hold_sec,
         )
             
         # TOPICS
@@ -353,8 +360,10 @@ class SocialNavigator(Node):
     def set_pose_wait_status(self, status, warn=False):
         self.pose_wait_status = status
         if status != self.last_pose_wait_status_logged:
-            logger = self.get_logger().warn if warn else self.get_logger().info
-            logger(status)
+            if warn:
+                self.get_logger().warn(status)
+            else:
+                self.get_logger().info(status)
             self.last_pose_wait_status_logged = status
 
     def clear_pose_wait_status(self):
@@ -405,7 +414,13 @@ class SocialNavigator(Node):
 
             raise exc
 
-    def choose_publish_frame(self):
+    def choose_publish_frame(self, active_persisted_walls=None):
+        if active_persisted_walls and any(
+            wall.get('latched') and wall.get('frame_id') == self.map_frame
+            for wall in active_persisted_walls.values()
+        ):
+            return self.map_frame
+
         if self.obstacle_cache_frame == self.target_frame:
             return self.target_frame
 
@@ -443,37 +458,80 @@ class SocialNavigator(Node):
     def wall_marker_id(self, pair_key):
         return ((pair_key[0] * 1000003) ^ pair_key[1]) & 0xFFFFFF
 
-    def refresh_persisted_wall(self, pair_key, tracker_a, tracker_b):
-        if self.social_obstacle_ttl_sec <= 0.0:
-            return
+    def freeze_wall(self, pair_key, tracker_a, tracker_b, can_cross, now=None):
+        if self.red_wall_hold_sec <= 0.0:
+            return False
 
-        p1 = self.transform_point(
-            float(tracker_a.state[0, 0]),
-            float(tracker_a.state[1, 0]),
-            0.0,
-            self.target_frame,
-            self.obstacle_cache_frame,
-        )
-        p2 = self.transform_point(
-            float(tracker_b.state[0, 0]),
-            float(tracker_b.state[1, 0]),
-            0.0,
-            self.target_frame,
-            self.obstacle_cache_frame,
-        )
-
-        if p1 is None or p2 is None:
-            return
+        if now is None:
+            now = time.time()
 
         with self.social_state_lock:
+            existing = self.persisted_walls.get(pair_key)
+            if (
+                existing is not None
+                and existing.get('latched')
+                and existing.get('expires_at', 0.0) > now
+            ):
+                return True
+
+        pose_a = tracker_a.last_visible_pose or (
+            float(tracker_a.state[0, 0]),
+            float(tracker_a.state[1, 0]),
+            float(tracker_a.z),
+        )
+        pose_b = tracker_b.last_visible_pose or (
+            float(tracker_b.state[0, 0]),
+            float(tracker_b.state[1, 0]),
+            float(tracker_b.z),
+        )
+
+        p1 = self.transform_point(pose_a[0], pose_a[1], pose_a[2], self.target_frame, self.map_frame)
+        p2 = self.transform_point(pose_b[0], pose_b[1], pose_b[2], self.target_frame, self.map_frame)
+        if p1 is None or p2 is None:
+            return False
+
+        with self.social_state_lock:
+            existing = self.persisted_walls.get(pair_key)
+            if (
+                existing is not None
+                and existing.get('latched')
+                and existing.get('expires_at', 0.0) > now
+            ):
+                return True
+
+            is_blocked = float(can_cross) < 0.5
             self.persisted_walls[pair_key] = {
-                'frame_id': self.obstacle_cache_frame,
-                'x1': p1[0],
-                'y1': p1[1],
-                'x2': p2[0],
-                'y2': p2[1],
-                'thickness': 0.4,
-                'expires_at': time.time() + self.social_obstacle_ttl_sec,
+                'can_cross': float(can_cross),
+                'expires_at': now + self.red_wall_hold_sec,
+                'frame_id': self.map_frame,
+                'latched': True,
+                'start': (float(p1[0]), float(p1[1])),
+                'end': (float(p2[0]), float(p2[1])),
+                'thickness': 0.4 if is_blocked else 0.05,
+            }
+
+        return True
+
+    def refresh_persisted_wall(self, pair_key, can_cross, now=None):
+        if now is None:
+            now = time.time()
+
+        with self.social_state_lock:
+            existing = self.persisted_walls.get(pair_key)
+            if (
+                existing is not None
+                and existing.get('latched')
+                and existing.get('expires_at', 0.0) > now
+            ):
+                return
+
+            if self.social_obstacle_ttl_sec <= 0.0:
+                self.persisted_walls.pop(pair_key, None)
+                return
+
+            self.persisted_walls[pair_key] = {
+                'can_cross': float(can_cross),
+                'expires_at': now + self.social_obstacle_ttl_sec,
             }
 
     def get_active_persisted_walls(self):
@@ -561,8 +619,7 @@ class SocialNavigator(Node):
                 )
                 if both_visible:
                     pending_edges.append((tracker_A, tracker_B, prob_cross, update_time))
-                if prob_cross < 0.5 and both_visible:
-                    pending_walls.append((pair_key, tracker_A, tracker_B))
+                    pending_walls.append((pair_key, prob_cross, tracker_A, tracker_B))
 
                 self.get_logger().info(
                     f"Edge [{id_A}-{id_B}] | Tracker IDs [{tracker_A.id}-{tracker_B.id}] "
@@ -585,8 +642,17 @@ class SocialNavigator(Node):
                 tracker_A.social_edges[tracker_B.id] = edge_state
                 tracker_B.social_edges[tracker_A.id] = edge_state
 
-        for pair_key, tracker_A, tracker_B in pending_walls:
-            self.refresh_persisted_wall(pair_key, tracker_A, tracker_B)
+        for pair_key, prob_cross, tracker_A, tracker_B in pending_walls:
+            if self.freeze_wall(
+                pair_key,
+                tracker_A,
+                tracker_B,
+                prob_cross,
+                now=update_time,
+            ):
+                continue
+
+            self.refresh_persisted_wall(pair_key, prob_cross, now=update_time)
 
     def extract_gemini_text(self, response):
         diagnostics = []
@@ -908,7 +974,8 @@ class SocialNavigator(Node):
         marker_array = MarkerArray()
         cloud_points = []
         now = time.time()
-        publish_frame = self.choose_publish_frame()
+        active_persisted_walls = self.get_active_persisted_walls()
+        publish_frame = self.choose_publish_frame(active_persisted_walls)
         
         delete_m = Marker()
         delete_m.action = Marker.DELETEALL
@@ -918,14 +985,8 @@ class SocialNavigator(Node):
         sorted_trackers = self.get_trackers_in_image_order()
         tracker_by_id = {t.id: t for t in sorted_trackers}
         tracker_positions = {}
+        visible_tracker_positions = {}
         drawn_pairs = set()
-        active_persisted_walls = self.get_active_persisted_walls()
-
-        with self.social_state_lock:
-            tracker_edge_snapshot = {
-                t.id: list(t.social_edges.items())
-                for t in sorted_trackers
-            }
 
         # Single cylinder for each human
         for t in sorted_trackers:
@@ -956,6 +1017,7 @@ class SocialNavigator(Node):
             if visible_pos is None:
                 continue
 
+            visible_tracker_positions[t.id] = visible_pos
             m = Marker()
             m.header.frame_id = publish_frame; m.header.stamp = self.get_clock().now().to_msg()
             m.ns = "humans"; m.id = t.id; m.type = Marker.CYLINDER; m.action = Marker.ADD
@@ -968,99 +1030,74 @@ class SocialNavigator(Node):
             self.add_cylinder_points(cloud_points, visible_pos[0], visible_pos[1], 0.25)
 
         for pair_key, wall in active_persisted_walls.items():
-            p1 = self.transform_point(
-                wall['x1'], wall['y1'], 0.0, wall['frame_id'], publish_frame
-            )
-            p2 = self.transform_point(
-                wall['x2'], wall['y2'], 0.0, wall['frame_id'], publish_frame
-            )
-
-            if p1 is None or p2 is None:
-                continue
-
-            self.draw_wall_segment(
-                marker_array,
-                cloud_points,
-                p1[0],
-                p1[1],
-                p2[0],
-                p2[1],
-                color=(1.0, 0.0, 0.0),
-                thickness=wall.get('thickness', 0.4),
-                frame_id=publish_frame,
-                marker_id=self.wall_marker_id(pair_key),
-            )
-            drawn_pairs.add(pair_key)
-
-        # DRAW SOCIAL GRAPH EDGES
-        for t1 in sorted_trackers:
-            for target_id, edge_state in tracker_edge_snapshot.get(t1.id, []):
-                
-                # Prevent drawing duplicate walls
-                pair_key = tuple(sorted([t1.id, target_id]))
-                if pair_key in drawn_pairs:
-                    continue
-
-                parsed_edge = self.parse_social_edge(edge_state)
-                if parsed_edge is None:
-                    self.get_logger().warn(
-                        f"Skipping malformed social edge between tracker {t1.id} and {target_id}."
-                    )
-                    continue
-
-                can_cross, updated_at = parsed_edge
-                if updated_at > 0.0 and (now - updated_at) > self.social_obstacle_ttl_sec:
-                    continue
-                
-                t2 = tracker_by_id.get(target_id)
-                if t2 is None:
-                    self.get_logger().warn(
-                        f"Skipping stale social edge from tracker {t1.id} to missing tracker {target_id}."
-                    )
-                    continue
-
-                if not (
-                    self.tracker_is_recently_visible(t1, now)
-                    and self.tracker_is_recently_visible(t2, now)
-                ):
-                    continue
-
-                p1 = tracker_positions.get(t1.id)
-                p2 = tracker_positions.get(target_id)
-                if p1 is None or p2 is None:
+            if wall.get('latched'):
+                start = wall.get('start')
+                end = wall.get('end')
+                if start is None or end is None:
                     continue
 
                 drawn_pairs.add(pair_key)
-                
-                # Navigation Logic
-                if can_cross < 0.5:
-                    # BLOCKED: Draw a solid Red Wall and add it to PointCloud (Costmap)
-                    self.draw_wall_segment(
-                        marker_array,
-                        cloud_points,
-                        p1[0],
-                        p1[1],
-                        p2[0],
-                        p2[1],
-                        color=(1.0, 0.0, 0.0),
-                        thickness=0.4,
-                        frame_id=publish_frame,
-                        marker_id=self.wall_marker_id(pair_key),
-                    )
-                else:
-                    # OPEN: Draw a faint Green Line in RViz, but PASS AN EMPTY LIST to keep the Costmap clear!
-                    self.draw_wall_segment(
-                        marker_array,
-                        [],
-                        p1[0],
-                        p1[1],
-                        p2[0],
-                        p2[1],
-                        color=(0.0, 1.0, 0.0),
-                        thickness=0.05,
-                        frame_id=publish_frame,
-                        marker_id=self.wall_marker_id(pair_key),
-                    )
+                can_cross = float(wall.get('can_cross', 1.0))
+                is_blocked = can_cross < 0.5
+                self.draw_wall_segment(
+                    marker_array,
+                    cloud_points if is_blocked else [],
+                    start[0],
+                    start[1],
+                    end[0],
+                    end[1],
+                    color=(1.0, 0.0, 0.0) if is_blocked else (0.0, 1.0, 0.0),
+                    thickness=float(wall.get('thickness', 0.4 if is_blocked else 0.05)),
+                    frame_id=wall.get('frame_id', self.map_frame),
+                    marker_id=self.wall_marker_id(pair_key),
+                )
+                continue
+
+            tracker_a = tracker_by_id.get(pair_key[0])
+            tracker_b = tracker_by_id.get(pair_key[1])
+            if tracker_a is None or tracker_b is None:
+                continue
+
+            if not (
+                self.tracker_is_recently_visible(tracker_a, now)
+                and self.tracker_is_recently_visible(tracker_b, now)
+            ):
+                continue
+
+            p1 = visible_tracker_positions.get(tracker_a.id)
+            p2 = visible_tracker_positions.get(tracker_b.id)
+            if p1 is None or p2 is None:
+                continue
+
+            drawn_pairs.add(pair_key)
+            can_cross = float(wall.get('can_cross', 1.0))
+
+            if can_cross < 0.5:
+                self.draw_wall_segment(
+                    marker_array,
+                    cloud_points,
+                    p1[0],
+                    p1[1],
+                    p2[0],
+                    p2[1],
+                    color=(1.0, 0.0, 0.0),
+                    thickness=0.4,
+                    frame_id=publish_frame,
+                    marker_id=self.wall_marker_id(pair_key),
+                )
+            else:
+                self.draw_wall_segment(
+                    marker_array,
+                    [],
+                    p1[0],
+                    p1[1],
+                    p2[0],
+                    p2[1],
+                    color=(0.0, 1.0, 0.0),
+                    thickness=0.05,
+                    frame_id=publish_frame,
+                    marker_id=self.wall_marker_id(pair_key),
+                )
 
         self.marker_pub.publish(marker_array)
         if cloud_points: 

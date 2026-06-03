@@ -1,5 +1,3 @@
-# Yahboom ROSMASTER X3 - Social Navigation Platform
-
 ![OS](https://img.shields.io/ubuntu/v/ubuntu-wallpapers/noble)
 ![ROS_2](https://img.shields.io/ros/v/jazzy/rclcpp)
 ![Gemini](https://img.shields.io/badge/Gemini-AI%20Powered-blue)
@@ -20,460 +18,274 @@
 
 ---
 
+# Social Navigation Module — Yahboom ROSMASTER & Lio Platform
+
 ## Overview
 
 This repository extends the base [Automatic Addison](https://automaticaddison.com) setup for the **ROSMASTER X3** robot by Yahboom. It has been significantly modified to support **social navigation research**, implementing a **KF-based Hybrid Tracker** that combines Generative AI with probabilistic state estimation to solve human tracking issues.
 
-### Key Modifications
+The system separates people position estimation from semantic scene understanding — a design decision motivated by the empirical observation that foundation models exhibit frame-to-frame positional inconsistency unsuitable for spatial tracking. The result is a two-node architecture:
 
-| Component | Changes |
-|-----------|---------|
-| **Nav2 Configuration** | Tuned for human-aware navigation with virtual obstacle support |
-| **Perception Pipeline** | YOLO11n-pose for robust, multi-person 3D shoulder landmark extraction |
-| **Foundation Model Integration** | Gemini Flash 2.0 for social engagement analysis and scene understanding |
-| **KF Hybrid Tracker** | Kalman Filter with nearest-neighbor data association for robust tracking |
-
-### Core Scripts
-
-The logic is split into specialized scripts to support both research environments:
-
-1. **`social_navigation_hybridsim.py`**: Optimized for **Gazebo Simulation**. Uses Kalman Filter for tracking. Handles TF transforms relative to the simulation `map` frame and synchronizes with simulated camera clocks. **Note:** Still exhibits jittering and ghosting — KF reduces noise but is not perfect.
-
-2. **`social_navigation_hybridreal.py`**: Optimized for **Real-World Hardware**. Uses Kalman Filter for tracking. Includes specific handling for the **Intel RealSense D435** drivers, manages real-world sensor noise (mm → m conversion), and handles the `camera_color_optical_frame` transforms directly. **Note:** Still exhibits jittering and ghosting — can be dangerous in real-world scenarios.
-
-3. **`yolo_detector.py` + `social_navigation.py`**: **Most Robust Solution**. Uses **YOLO11n-pose** for human pose estimation. Detects left and right shoulder landmarks to provide accurate keypoints, assigns persistent IDs via left-to-right spatial ordering, and publishes both a PoseArray and an annotated image with bounding boxes and IDs. The Kalman Filter in `social_navigation.py` then tracks these detections over time while Gemini Flash 2.0 evaluates social boundaries. This approach **eliminates jitter and ghost obstacles** that persist with the KF-only methods. **Requires Conda environment.**
+1. **yolo_detector.py** — People detection and 3D position estimation using YOLO11n-pose and Intel RealSense D435
+2. **social_navigation.py** — Kalman Filter tracking, Gemini Flash 2.0 social scene understanding, and Nav2 costmap injection via `/social_obstacles`
 
 ---
 
-## Quick Start
+## Live Robot Demonstration
+
+The following video shows the system running on the Lio platform at Idiap Research Institute. The robot correctly routes around two individuals engaged in conversation (social obstacle injected as a red wall in RViz) and passes directly between two non-interacting individuals (green indicator, no obstacle injected).
+
+[▶ Watch Demo Video](Social_navigation_Demo.mp4)
+
+---
+
+## System Architecture Details
+
+The system separates people position estimation from semantic scene understanding:
+
+```
+RGB-D Camera (D435)
+        │
+        ▼
+YOLO11n-pose Detector
+├── /detected_humans  (PoseArray — 3D positions)
+└── /annotated_image  (RGB + bounding boxes + IDs)
+        │
+        ├──────────────────────────┐
+        ▼                          ▼
+Kalman Filter Tracker      Gemini Flash 2.0
+(3D position estimation)   (Social scene understanding)
+        │                          │
+        └──────────┬───────────────┘
+                   ▼
+           Integration Layer
+           (ID-consistent mapping)
+                   │
+                   ▼
+        /social_obstacles (PointCloud2)
+                   │
+                   ▼
+            Nav2 Costmap
+          (Path planning)
+```
+
+---
+
+### People Position Estimation Pipeline
+
+Each detected individual is localised using the shoulder midpoint from YOLO11n-pose keypoints (COCO indices 5 = left shoulder, 6 = right shoulder) and the D435 depth stream. The 2D pixel coordinates $(u, v)$ of the shoulder midpoint are deprojected to 3D camera-frame coordinates using the camera intrinsics:
+
+$$X = \frac{(u - c_x) \cdot Z}{f_x}, \quad Y = \frac{(v - c_y) \cdot Z}{f_y}$$
+
+where $f_x, f_y$ are the focal lengths and $c_x, c_y$ the principal point, obtained from the `/camera/camera/color/camera_info` topic. When shoulder keypoints are not reliably detected (confidence < 0.4), a fallback position at the upper-middle region of the bounding box is used instead.
+
+Detected individuals are sorted left-to-right by bounding box x-coordinate before ID assignment, ensuring consistent correspondence between YOLO IDs visible in the annotated image and Gemini's left-to-right visual ordering.
+
+---
+
+### Kalman Filter Tracking
+
+Each tracked individual maintains a state vector $\mathbf{x} = [x, y, v_x, v_y]^\top$ encoding planar position and velocity in the robot coordinate frame. The filter executes a predict-update cycle at each timestep:
+
+**Prediction:**
+
+$$\hat{\mathbf{x}}_{k|k-1} = \mathbf{A}\hat{\mathbf{x}}_{k-1}, \quad \mathbf{P}_{k|k-1} = \mathbf{A}\mathbf{P}_{k-1}\mathbf{A}^\top + \mathbf{Q}$$
+
+where the state transition matrix is:
+
+$$\mathbf{A} = \begin{bmatrix} 1 & 0 & dt & 0 \\ 0 & 1 & 0 & dt \\ 0 & 0 & 1 & 0 \\ 0 & 0 & 0 & 1 \end{bmatrix}, \quad dt = 0.1 \text{ s}$$
+
+**Update:**
+
+$$\mathbf{y}_k = \mathbf{z}_k - \mathbf{H}\hat{\mathbf{x}}_{k|k-1}$$
+
+$$\mathbf{S}_k = \mathbf{H}\mathbf{P}_{k|k-1}\mathbf{H}^\top + \mathbf{R}$$
+
+$$\mathbf{K}_k = \mathbf{P}_{k|k-1}\mathbf{H}^\top \mathbf{S}_k^{-1}$$
+
+$$\hat{\mathbf{x}}_k = \hat{\mathbf{x}}_{k|k-1} + \mathbf{K}_k\mathbf{y}_k, \quad \mathbf{P}_k = (\mathbf{I} - \mathbf{K}_k\mathbf{H})\mathbf{P}_{k|k-1}$$
+
+where $\mathbf{H} = \begin{bmatrix} 1 & 0 & 0 & 0 \\ 0 & 1 & 0 & 0 \end{bmatrix}$ maps the state to the $(x, y)$ measurement space, $\mathbf{y}_k$ is the innovation, $\mathbf{S}_k$ is the innovation covariance, and $\mathbf{K}_k$ is the Kalman gain.
+
+**Tuned parameters:**
+
+| Parameter | Value | Description |
+|-----------|-------|-------------|
+| $\mathbf{Q}$ | `diag(0.03, 0.03, 0.1, 0.1)` | Process noise covariance |
+| $\mathbf{R}$ | $0.6 \cdot \mathbf{I}_2$ | Measurement noise covariance |
+| Friction factor | $0.95$ | Applied to velocity components per step |
+| Tracker TTL | $3.0$ s | Timeout before tracker removal |
+
+---
+
+### Semantic Scene Understanding Pipeline
+
+The Gemini Flash 2.0 API is called asynchronously every 2.0 seconds via a `ThreadPoolExecutor` background thread, decoupled from the camera frame rate to prevent API latency from blocking real-time navigation. An API call is made only when:
+
+- At least 2 people are detected in the scene
+- 2.0 seconds have elapsed since the previous call
+
+The annotated RGB image (with YOLO bounding boxes and person IDs) is submitted to the Gemini Flash 2.0 API together with a structured natural language prompt. The model returns a JSON object specifying for each unique pair of individuals: an engagement level (low / medium / high), a continuous crossability score $c \in [0.0, 1.0]$, and a short reasoning statement.
+
+---
+
+### Social Obstacle Injection
+
+For each pair of tracked individuals, the navigation decision follows:
+
+$$\text{inject obstacle} = \begin{cases} \text{true} & \text{if } c < 0.5 \\ \text{false} & \text{if } c \geq 0.5 \end{cases}$$
+
+When an obstacle is injected, a wall of `PointCloud2` points is generated spanning the space between the two individuals' estimated positions in the map frame and published to `/social_obstacles`. The Nav2 costmap obstacle layer marks these cells as occupied, causing the global and local planners to route around the interaction space. The `clearing: true` configuration ensures obstacles are removed when the social link is no longer detected.
+
+---
+
+## Setup
 
 ### Prerequisites
+
 ```bash
+# Activate conda environment
+conda activate your_env
+
 # Install dependencies
-sudo apt update
-sudo apt install ros-jazzy-navigation2 ros-jazzy-nav2-bringup ros-jazzy-realsense2-camera
-
-# Python dependencies for Gemini AI
-pip install google-generativeai opencv-python pillow numpy --break-system-packages
-
-# YOLO dependencies (inside conda environment)
-conda activate YOUR_ENV
-pip install ultralytics
+pip install ultralytics google-generativeai opencv-python cv_bridge
 ```
 
-### Setup Aliases (Recommended)
+### Environment Variable
 
-Add these aliases to your `~/.bashrc` for quick access:
 ```bash
-# Navigation aliases for simulation Gazebo
-alias nav1='bash /home/<user>/ros2_ws/src/yahboom_rosmaster/yahboom_rosmaster_bringup/scripts/rosmaster_x3_navigation.sh'
-
-# Social navigation with Gemini AI (KF Hybrid Tracker)
-alias social_nav='bash /home/<user>/ros2_ws/src/yahboom_rosmaster/yahboom_rosmaster_bringup/scripts/launch_gemini_detector.sh'
-
-# Source ROS2 workspace
-alias srcros='source /home/<user>/ros2_ws/install/setup.bash'
-```
-
-Then reload:
-```bash
-source ~/.bashrc
+export GEMINI_API_KEY="your_api_key_here"
 ```
 
 ---
 
-## Running the System
+### Running the System
 
-You can run the system in three modes: **Simulation**, **Real-World (KF)**, or **Real-World (YOLO Pose)**.
-
-### Mode 1: Simulation (Gazebo)
-
-Use this mode for testing logic and navigation behavior in a safe virtual environment.
-
-**Terminal 1: Launch Simulation & Nav2**
+**Terminal 1 — RealSense camera:**
 ```bash
-nav_sim
-# Launches Gazebo, Robot State Publisher, Nav2, and RViz
+ros2 launch realsense2_camera rs_launch.py \
+    pointcloud.enable:=true \
+    align_depth.enable:=true
 ```
 
-**Terminal 2: Launch Social Tracker (Sim)**
+**Terminal 2 — Static TF transform (Lio platform):**
 ```bash
-# Ensure your API Key is set
-export GEMINI_API_KEY="AIzaSy...YOUR_KEY"
-
-# Run the Simulation Script (uses Kalman Filter)
-ros2 run yahboom_rosmaster_navigation social_navigation_hybridsim.py
+ros2 run tf2_ros static_transform_publisher \
+    -0.10 0 0.052 0 -1.5708 0 \
+    lio_gripper_interface_link camera_link
 ```
 
-> ⚠️ **Note:** The simulation script uses Kalman Filter. You may still observe jittering and ghosting — KF reduces noise but is not perfect.
-
-### Mode 2: Real-World (KF-based)
-
-Use this mode when connected to the physical robot with the Intel RealSense D435 camera.
-
-**Terminal 1: Launch Camera Drivers**
-
-Start the RealSense camera with pointclouds enabled.
+**Terminal 3 — YOLO detector:**
 ```bash
-ros2 launch realsense2_camera rs_launch.py align_depth.enable:=true pointcloud.enable:=true
-```
-
-**Terminal 2: Launch Real-World Tracker**
-```bash
-# Ensure your API Key is set
-export GEMINI_API_KEY="AIzaSy...YOUR_KEY"
-
-# Run the Real-World Script (uses Kalman Filter)
-ros2 run yahboom_rosmaster_navigation social_navigation_hybridreal.py
-```
-
-> ⚠️ **Warning:** This method still exhibits jittering and ghosting, which can be **dangerous** in real-world scenarios. Consider using YOLO Pose mode below for robust tracking.
-
-**Terminal 3: Visualization (Optional)**
-```bash
-ros2 run rviz2 rviz2
-# Set Fixed Frame to: camera_color_optical_frame
-# Add MarkerArray topic: /human_markers
-# Add PointCloud2 topic: /social_obstacles
-```
-
-### Mode 3: Real-World (YOLO Pose — Recommended)
-
-This is the **most robust solution** that eliminates jitter and ghost obstacles. It uses YOLO11n-pose to detect left and right shoulder landmarks, providing accurate keypoints for human localization.
-
-> ⚠️ **Important:** The Conda environment must be active when running the YOLO detector. YOLO depends on `ultralytics` and other packages installed inside the Conda environment.
-
-**Terminal 1: Launch Camera Drivers**
-```bash
-ros2 launch realsense2_camera rs_launch.py pointcloud.enable:=true align_depth.enable:=true
-```
-
-**Terminal 2: Static TF Transforms**
-
-Publish the required TF transforms between the robot base and camera frames:
-```bash
-# Terminal 2a: Gripper to camera transform
-ros2 run tf2_ros static_transform_publisher -0.10 0 0.052 0 -1.5708 0 lio_gripper_interface_link camera_link
-
-# Terminal 2b: Base to camera transform
-ros2 run tf2_ros static_transform_publisher 0 0 0.5 0 0 0 LIO_base_link camera_link
-```
-
-**Terminal 3: Launch YOLO Detector (Conda required)**
-```bash
-# Activate Conda environment — required for YOLO
-conda activate YOUR_ENV
-
-# Run YOLO detector (Node 1)
 python3 yolo_detector.py
 ```
 
-> This publishes `/detected_humans` (PoseArray) and `/annotated_image` (sensor_msgs/Image with bounding boxes and IDs).
-
-**Terminal 4: Launch Social Navigation**
+**Terminal 4 — Social navigator:**
 ```bash
-# Ensure your API Key is set
-export GEMINI_API_KEY="AIzaSy...YOUR_KEY"
-
-# Run social navigation (Node 2)
 python3 social_navigation.py
 ```
 
-> 💡 **Tip:** You can also set the API key in the `social_navigation.py` file directly or in `launch_gemini_detector.sh` under `yahboom_rosmaster_bringup`.
+---
+
+## ROS2 Topics
+
+| Topic | Type | Direction | Description |
+|-------|------|-----------|-------------|
+| `/camera/camera/color/image_raw` | `Image` | Subscribe | Raw RGB stream from D435 |
+| `/camera/camera/aligned_depth_to_color/image_raw` | `Image` | Subscribe | Aligned depth stream |
+| `/detected_humans` | `PoseArray` | Publish | 3D human positions in camera frame |
+| `/annotated_image` | `Image` | Publish | RGB with bounding boxes and IDs |
+| `/social_obstacles` | `PointCloud2` | Publish | Social obstacle walls for Nav2 |
+| `/human_markers` | `MarkerArray` | Publish | Cylinder markers for RViz |
 
 ---
 
-## Social Navigation Features
+## Nav2 Configuration
 
-### Human Detection with YOLO Pose
+Add `/social_obstacles` as an observation source in your `nav2_params.yaml`. This must be declared at system startup — Nav2 does not support runtime addition of new observation sources.
 
-The perception pipeline uses **YOLO11n-pose** to:
-
-1. **Detect humans** in camera images with bounding boxes
-2. **Extract shoulder landmarks** — left and right shoulder keypoints for precise 3D localization
-3. **Assign persistent IDs** via left-to-right spatial ordering
-4. **Publish detections** as PoseArray (3D positions) and annotated images with IDs
-
-### Social Reasoning with Gemini Flash 2.0
-
-The system uses Google's **Gemini Flash 2.0** foundation model to:
-
-1. **Analyze annotated images** with bounding boxes and human IDs from YOLO
-2. **Evaluate pairwise social engagement** between all human combinations — groups of 3+ are decomposed into all C(n,2) pairs
-3. **Return per-pair data**: engagement level, `robot_can_cross` probability [0–1], and a reason
-4. **Store results** as bidirectional edges in the tracker's `social_edges` dictionary
-
-### Costmap Generation
-
-The `analyse_loop` runs at 10Hz and:
-
-1. **Rebuilds the entire PointCloud2** from scratch every cycle — no stale data accumulation in the node
-2. **Generates obstacle cylinders** (r=0.25m, h=1.4m, 40 points) around each tracked human
-3. **Creates social walls** between blocked pairs (`can_cross < 0.5`) as dense obstacle points
-4. **Publishes to `/social_obstacles`** (PointCloud2) consumed by Nav2's costmap
-
-### Sample Output
-
-When running the social navigation node, you'll see real-time detection logs:
-```
-[INFO] [social_navigator_main]: Mapped Pair [0, 1] | Can Cross: 0.15 | Reason: Active conversation
-[INFO] [social_navigator_main]: Edge [0-1] | Cross Prob: 0.15 | Reason: Active conversation
-```
-
----
-
-## Algorithm: KF Hybrid Tracker
-
-The tracking system evolved through four iterations, each solving specific problems:
-
-| Version | Method | Problem Solved | Remaining Issue |
-|---------|--------|----------------|-----------------|
-| V1 | Velocity Clamping + Low-Pass Filter | Reduced teleportation jumps | Jitter and ghosting persisted |
-| V2 | V1 + Hit Threshold | Eliminated ghost obstacles | 2s delay before new detections appear |
-| V3 | Kalman Filter + Mahalanobis | Probabilistic smoothing + motion prediction | Jitter and ghosting reduced but still present — can be dangerous |
-| **V4 (Current)** | **YOLO Pose + KF + Gemini** | **ML-based shoulder keypoints** | **None — most robust solution** |
-
-### Why Kalman Filter?
-
-The fundamental problem is that per-frame analysis produces **non-deterministic measurements**: the same person in the same position yields slightly different bounding boxes each frame due to pixel-level variations in color and illumination. Combined with noisy depth sensor data, this causes obstacle positions to jitter and ghost.
-
-The Kalman Filter addresses both issues:
-1. **Process noise** models frame-to-frame variation
-2. **Measurement noise** models the depth sensor uncertainty
-3. **State prediction** enables smooth obstacle movement between detection frames
-
-A Particle Filter was considered but rejected due to computational cost — Gemini already introduces latency (~1–2s per frame), and particle filtering on a laptop CPU would compound this significantly.
-
-### Why YOLO Pose is Better
-
-While KF reduces noise, it cannot eliminate jitter caused by **fundamentally noisy bounding box center detections**. YOLO11n-pose provides:
-
-- **Anatomical keypoints** (shoulders) instead of bounding box centers
-- **Sub-pixel accuracy** from trained neural networks
-- **Temporal consistency** built into the pose estimation model
-
----
-
-### 1. Kalman Filter State Model
-
-Each tracked human is modeled with a **constant-velocity state vector**:
-
-$$\mathbf{x} = \begin{bmatrix} x \\ y \\ v_x \\ v_y \end{bmatrix}$$
-
-where $(x, y)$ is the position in the robot base frame and $(v_x, v_y)$ is the estimated velocity.
-
-#### Prediction Step
-
-The state transition follows a constant-velocity model:
-
-$$\mathbf{x}_{k|k-1} = \mathbf{A} \cdot \mathbf{x}_{k-1|k-1}$$
-
-$$\mathbf{A} = \begin{bmatrix} 1 & 0 & \Delta t & 0 \\ 0 & 1 & 0 & \Delta t \\ 0 & 0 & 1 & 0 \\ 0 & 0 & 0 & 1 \end{bmatrix}$$
-
-with $\Delta t = 0.1\text{s}$.
-
-The predicted covariance:
-
-$$\mathbf{P}_{k|k-1} = \mathbf{A} \cdot \mathbf{P}_{k-1|k-1} \cdot \mathbf{A}^T + \mathbf{Q}$$
-
-where:
-
-$$\mathbf{Q} = \begin{bmatrix} 0.05 & 0 & 0 & 0 \\ 0 & 0.05 & 0 & 0 \\ 0 & 0 & 0.1 & 0 \\ 0 & 0 & 0 & 0.1 \end{bmatrix}$$
-
-The higher process noise on velocity $(0.1)$ versus position $(0.05)$ reflects that velocity changes are expected between frames (people start and stop), while position should evolve smoothly.
-
-A **velocity friction factor** of $0.95$ is applied after each prediction to bias stationary humans toward zero velocity:
-
-$$v_x \leftarrow 0.95 \cdot v_x, \quad v_y \leftarrow 0.95 \cdot v_y$$
-
-#### Update Step
-
-When a new YOLO detection arrives, the measurement is the position in the robot base frame:
-
-$$\mathbf{z}_k = \begin{bmatrix} x_{measured} \\ y_{measured} \end{bmatrix}$$
-
-The measurement matrix extracts position from the state:
-
-$$\mathbf{H} = \begin{bmatrix} 1 & 0 & 0 & 0 \\ 0 & 1 & 0 & 0 \end{bmatrix}$$
-
-**Innovation** (difference between measurement and prediction):
-
-$$\mathbf{y}_k = \mathbf{z}_k - \mathbf{H} \cdot \mathbf{x}_{k|k-1}$$
-
-**Innovation covariance**:
-
-$$\mathbf{S}_k = \mathbf{H} \cdot \mathbf{P}_{k|k-1} \cdot \mathbf{H}^T + \mathbf{R}$$
-
-where $\mathbf{R} = \mathbf{I}_2 \cdot 0.5$ represents the measurement noise. The value $R = 0.5$ indicates moderate camera trust.
-
-**Kalman Gain**:
-
-$$\mathbf{K}_k = \mathbf{P}_{k|k-1} \cdot \mathbf{H}^T \cdot \mathbf{S}_k^{-1}$$
-
-**State update**:
-
-$$\mathbf{x}_{k|k} = \mathbf{x}_{k|k-1} + \mathbf{K}_k \cdot \mathbf{y}_k$$
-
-**Covariance update**:
-
-$$\mathbf{P}_{k|k} = (\mathbf{I}_4 - \mathbf{K}_k \cdot \mathbf{H}) \cdot \mathbf{P}_{k|k-1}$$
-
-#### Z-Axis (Depth) Handling
-
-The depth coordinate is updated directly when a new measurement arrives, since vertical motion is not modeled by the 2D Kalman Filter:
-
-$$z_t = z_{measured}$$
-
----
-
-### 2. Data Association
-
-A critical component is **matching new detections to existing tracks**. The system uses **nearest-neighbor association** with a distance gate of 5.0m and a used-tracker exclusion set to prevent two detections from claiming the same identity.
-
-#### Association Algorithm
-
-```
-1. PREDICT all existing trackers
-2. FOR each new detection:
-     Find the nearest unmatched tracker within the 5m gate
-     IF found → UPDATE that tracker with the measurement
-     ELSE → CREATE a new tracker
-3. REMOVE trackers with no update for 3.0s (TTL expiry)
-```
-
-#### Implementation
-```python
-used_trackers = set()
-for det in detections:
-    best_t = None
-    min_dist = 5.0
-
-    for t in self.trackers:
-        if t in used_trackers:
-            continue
-        dist = math.sqrt((t.state[0, 0]-det['x'])**2 + (t.state[1, 0]-det['y'])**2)
-        if dist < min_dist:
-            min_dist = dist
-            best_t = t
-
-    if best_t:
-        best_t.update(det['x'], det['y'], det['z'])
-        used_trackers.add(best_t)
-    else:
-        self.trackers.append(HumanTracker(det['x'], det['y'], det['z']))
-```
-
----
-
-### 3. Legacy Methods (V1–V2 — Retained as Fallback)
-
-The original Velocity Clamping and Exponential Smoothing methods are retained in the simulation script as a simpler alternative.
-
-#### Velocity Clamping (Anti-Teleportation)
-
-Limits the maximum displacement per time step to prevent impossible jumps:
-
-$$\mathbf{P}_{clamped} = \begin{cases} \mathbf{P}_{new} & \text{if } d \le d_{max} \\ \mathbf{P}_{old} + \frac{\Delta \mathbf{P}}{|\Delta \mathbf{P}|} \cdot d_{max} & \text{if } d > d_{max} \end{cases}$$
-
-where $d = |\mathbf{P}_{new} - \mathbf{P}_{old}|$ and $d_{max} = 0.3\text{m}$.
-
-#### Exponential Smoothing (Low-Pass Filter)
-
-Blends the current measurement with the previous state:
-
-$$\mathbf{P}_{t} = \alpha \cdot \mathbf{P}_{input} + (1 - \alpha) \cdot \mathbf{P}_{t-1}$$
-
-where $\alpha = 0.2$.
-
-#### Combined Legacy Formula
-
-$$\mathbf{P}_{final} = \alpha \cdot \left[ \mathbf{P}_{old} + \min\left(1, \frac{d_{max}}{|\mathbf{P}_{sensor} - \mathbf{P}_{old}|} \right) (\mathbf{P}_{sensor} - \mathbf{P}_{old}) \right] + (1 - \alpha) \cdot \mathbf{P}_{old}$$
-
----
-
-### 4. Mahalanobis Distance (V3 — Retained in hybridreal/hybridsim)
-
-The V3 scripts (`social_navigation_hybridreal.py` and `social_navigation_hybridsim.py`) use **Mahalanobis distance** for data association instead of Euclidean distance. This weights the residual by the inverse of the innovation covariance, providing adaptive elliptical gating.
-
-#### The Formula
-
-For a detection $\mathbf{z}$ and a track with predicted state $\mathbf{x}$:
-
-$$d^2_M = \mathbf{y}^T \cdot \mathbf{S}^{-1} \cdot \mathbf{y}$$
-
-where:
-- $\mathbf{y} = \mathbf{z} - \mathbf{H} \cdot \mathbf{x}$ is the innovation residual
-- $\mathbf{S} = \mathbf{H} \cdot \mathbf{P} \cdot \mathbf{H}^T + \mathbf{R}$ is the innovation covariance
-
-#### Chi-Squared Gating
-
-Under the assumption that the innovation is Gaussian, $d^2_M$ follows a **chi-squared distribution** with 2 degrees of freedom. A **99% confidence gate** is applied:
-
-$$d^2_M < \chi^2_{2, 0.99} = 9.21$$
-
-| Confidence Level | $\chi^2$ Threshold (2 DOF) | Meaning |
-|------------------|---------------------------|---------|
-| 95% | 5.99 | Tighter gate — may miss valid associations |
-| **99%** | **9.21** | **Used in V3 — good balance** |
-| 99.5% | 10.60 | Looser gate — may allow false associations |
-
----
-
-## Configuration
-
-### Camera Settings
-
-Camera settings affect both detection quality and system performance. Edit in `rosmaster_x3.urdf.xacro`:
-```xml
-<xacro:rgbd_camera
-  xyz_offset="0.105 0 0.05"
-  rpy_offset="0 0.1 0"/>
-```
-
-| Parameter | Recommended | Description |
-|-----------|-------------|-------------|
-| `image_width` | 640 | Image width in pixels |
-| `image_height` | 480 | Image height in pixels |
-| `update_rate` | 5 | Frames per second |
-| `clip_far` | 8.0 | Maximum detection range (meters) |
-
-### Nav2 Virtual Obstacles Configuration
-
-Ensure your `nav2_params.yaml` has virtual obstacles configured:
 ```yaml
-obstacle_layer:
-  plugin: "nav2_costmap_2d::ObstacleLayer"
-  observation_sources: scan social_obstacles
-  scan:
-    topic: /scan
-    # ... scan params ...
-  social_obstacles:
-    topic: /social_obstacles
-    data_type: "PointCloud2"
-    marking: true
-    clearing: false
-    min_obstacle_height: 0.0
-    max_obstacle_height: 2.0
+local_costmap:
+  local_costmap:
+    ros__parameters:
+      obstacle_layer:
+        plugin: "nav2_costmap_2d::ObstacleLayer"
+        enabled: True
+        observation_sources: scan social_obstacles
+        scan:
+          topic: /scan
+          data_type: "LaserScan"
+          marking: true
+          clearing: true
+        social_obstacles:
+          topic: /social_obstacles
+          data_type: "PointCloud2"
+          marking: true
+          clearing: true
+          min_obstacle_height: 0.0
+          max_obstacle_height: 2.0
+          obstacle_max_range: 10.0
+          obstacle_min_range: 0.0
+
+global_costmap:
+  global_costmap:
+    ros__parameters:
+      obstacle_layer:
+        plugin: "nav2_costmap_2d::ObstacleLayer"
+        enabled: True
+        observation_sources: scan social_obstacles
+        social_obstacles:
+          topic: /social_obstacles
+          data_type: "PointCloud2"
+          marking: true
+          clearing: true
+          min_obstacle_height: 0.0
+          max_obstacle_height: 2.0
+          obstacle_max_range: 10.0
+          obstacle_min_range: 0.0
 ```
 
-> ⚠️ **Known Issue:** With `clearing: false`, costmap cells persist even after the node stops publishing points at those locations. For production use, a dedicated costmap layer plugin with built-in cell timeout is recommended.
-
-> ⚠️ **Lio Platform Note:** Nav2 only allows observation sources to be declared at startup from config files, not at runtime. On Lio, which uses dynamic config generation from sensor YAML files, company-side access is required to add the `social_obstacles` observation source.
+**Important:** The `social_obstacles` section must be inside the `obstacle_layer` block at the same indentation level as `scan`.
 
 ---
 
-## Environment Variables
+## Camera Configuration (Yahboom Simulation — Gazebo)
 
-Add to `~/.bashrc`:
+If using the Yahboom ROSMASTER X3 in Gazebo, configure the simulated D435 in the URDF:
+
+```xml
+horizontal_fov:=1.5184
+image_width:=424
+image_height:=240
+clip_near:=0.05
+clip_far:=12.0
+update_rate:=5.0
+xyz_offset:='0.105 0 0.05'
+rpy_offset:='0 0.2 0'
+```
+
+> **Note:** High resolution or update rate can cause simulation instability. Use the values above for stable operation.
+
+---
+
+## Verification Commands
+
 ```bash
-# Gazebo model path (required for cafe world)
-export GZ_SIM_RESOURCE_PATH=/home/<user>/ros2_ws/src/yahboom_rosmaster/yahboom_rosmaster_gazebo/models:$GZ_SIM_RESOURCE_PATH
+# Check social obstacles are being published
+ros2 topic hz /social_obstacles
 
-# ROS2 workspace
-source /home/<user>/ros2_ws/install/setup.bash
+# Check subscription count (should be 2 — local + global costmap)
+ros2 topic info /social_obstacles
 
-# Gemini API Key
-export GEMINI_API_KEY="AIzaSy...YOUR_KEY"
+# Verify Nav2 observation sources
+ros2 param get /local_costmap/local_costmap obstacle_layer.observation_sources
+# Expected: "scan social_obstacles"
+
+# Monitor human detections
+ros2 topic echo /detected_humans
+
+# Check Kalman Filter stability (printed every 100 frames in terminal)
+# Look for STABILITY REPORT output
 ```
 
 ---
@@ -482,41 +294,41 @@ export GEMINI_API_KEY="AIzaSy...YOUR_KEY"
 
 | Problem | Solution |
 |---------|----------|
-| **Robot sees ghosts (Double Obstacles)** | Use YOLO Pose mode for robust tracking, or ensure you are running the latest KF-based script |
-| **Social obstacles not appearing** | Check Nav2 config — `social_obstacles` must be inside `obstacle_layer` |
-| **Depth always shows VISUAL FALLBACK** | RealSense returns mm, not meters — ensure depth filter uses `> 100` and `< 8000` with `/1000.0` conversion |
-| **Transform errors** | Verify TF chain: `map → base_link → camera_link → camera_color_optical_frame`. Run `ros2 run tf2_tools view_frames` |
-| **Camera looking at ceiling** | Change `rpy_offset` to `"0 0.1 0"` in URDF |
-| **System slow / frozen image** | Throttle debug image publishing — avoid `imgmsg_to_cv2` at 10Hz on the robot |
-| **Gemini API errors** | Verify `export GEMINI_API_KEY` is set in the launch script |
-| **RealSense not detected** | Check USB connection, run `rs-enumerate-devices` |
-| **YOLO import errors** | Ensure Conda environment is active: `conda activate YOUR_ENV` |
-| **Costmap ghost walls accumulating** | Known Nav2 limitation with `clearing: false` — node republishes fresh data every 0.1s but costmap retains old cells |
+| Social obstacles not appearing in costmap | Check Nav2 YAML indentation and `clearing: true` |
+| Ghost obstacles persisting | Check Kalman Filter TTL (default 3.0 s) and confidence threshold |
+| TF lookup warnings | Verify static transform is published before launching social_navigation.py |
+| Gemini API errors | Check `GEMINI_API_KEY` environment variable and Wi-Fi connection |
+| Robot unstable in simulation | Reduce camera resolution or update rate in URDF |
+| ID mismatch between YOLO and Gemini | Ensure left-to-right bounding box sorting is active |
+| No detections | Check YOLO confidence threshold (default 0.40) and person class filter |
+| Depth values missing | Ensure `align_depth.enable:=true` in RealSense launch |
 
 ---
 
-## Documentation
+## Repository Structure
 
-| Document | Description |
-|----------|-------------|
-| [Interactive Architecture Diagram](docs/architecture.html) | System data flow — open in browser |
-| [Navigation README](yahboom_rosmaster_navigation/README.md) | Virtual obstacles and social navigation guide |
-| [Troubleshooting Report](yahboom_rosmaster_navigation/TROUBLESHOOTING_REPORT.md) | Common issues and solutions |
-| [Supervisor Report](yahboom_rosmaster_navigation/SUPERVISOR_REPORT.md) | Technical details for academic review |
+```
+yahboom_rosmaster_navigation/
+├── scripts/
+│   ├── yolo_detector.py          # Node 1: YOLO detection + 3D localisation
+│   ├──social_navigation.py      # Node 2: KF tracking + Gemini + Nav2 injection
+│   └── ...
+
+```
 
 ---
 
-## Credits
+## Related Publication
 
-- **Base Setup:** [Automatic Addison](https://automaticaddison.com) — ROSMASTER X3 ROS 2 tutorials
-- **Robot Hardware:** [Yahboom](https://www.yahboom.net/) — ROSMASTER X3 robot platform
-- **AI Integration:** Google Gemini Flash 2.0 API for social engagement analysis
-- **Algorithm Design:** Abolghasem Esmaeily
+This system is described in detail in:
+
+> Esmaeily, A. (2025). *Zero-Shot Semantic Scene Understanding for Socially Appropriate Robot Navigation using Multimodal Foundation Models*. MSc Thesis, KTH Royal Institute of Technology / Idiap Research Institute.
 
 ---
 
 ## Author
 
-**Abolghasem Esmaeily**
-Social Navigation Research — MSc Thesis
-KTH Royal Institute of Technology / Idiap Research Institute
+**Abolghasem Esmaeily**  
+MSc Systems, Control and Robotics — KTH Royal Institute of Technology  
+Thesis conducted at Idiap Research Institute, Martigny, Switzerland  
+Supervisors: Dr. Emmanuel Senft  and Sarah Gillet
