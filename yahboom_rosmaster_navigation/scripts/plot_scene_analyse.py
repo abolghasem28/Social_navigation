@@ -211,7 +211,7 @@ def generate_violin_plot(df_master, output_path, n_human_p, n_robot_p):
 
 
 # =============
-# Plotting the comperesion of the Survey and the reseacher ground truth
+# Plotting the comperesion of the Survey and the reseacher label
 def generate_gt_comparison_plot(df_master, gt_csv_path, output_path):
     # Load complete survey dta
     df_raw = pd.read_csv(SURVEY_CSV)
@@ -310,7 +310,7 @@ def generate_gt_comparison_plot(df_master, gt_csv_path, output_path):
     ax_gt.set_ylim(-0.12, 1.22)
     ax_gt.set_yticks([0, 0.25, 0.5, 0.75, 1.0])
     ax_gt.set_yticklabels(['0.0  (Blocked)', '0.25', '0.50', '0.75', '1.0  (Open)'], fontsize=11)
-    ax_gt.set_xlabel('Researcher Ground Truth Label', fontsize=13)
+    ax_gt.set_xlabel('Researcher Label', fontsize=13)
     ax_gt.set_ylabel('Participant Crossability Score', fontsize=13)
     ax_gt.set_xticks([0, 1])
     ax_gt.set_xticklabels(['Blocked\n(pairs we expected\nnot to cross)',
@@ -331,7 +331,7 @@ def generate_gt_comparison_plot(df_master, gt_csv_path, output_path):
     ax_gt.legend(handles=legend_handles, fontsize=10, loc='lower right',
               frameon=True, framealpha=0.9)
 
-    ax_gt.set_title('Survey Crossability Ratings vs Researcher Ground Truth\n'
+    ax_gt.set_title('Survey Crossability Ratings vs Researcher Label\n'
                  '(24 complete respondents — between-subjects design)',
                  fontsize=13, fontweight='bold', pad=12)
 
@@ -411,9 +411,9 @@ def generate_statistical_analysis(output_path):
     for framing, color in palette.items():
         grp = means[means['Framing']==framing].set_index('Scene').reindex(scene_order)
         mu = survey[survey['Framing']==framing]['Score'].mean()
-        ax.plot(range(len(scene_order)), grp['Score'],
-                marker='o', color=color, linewidth=2.2, markersize=7,
-                alpha=0.9, label=f'{framing} (μ={mu:.3f})')
+        ax.scatter(range(len(scene_order)), grp['Score'],
+                   color=color, s=80, zorder=3,
+                   alpha=0.9, label=f'{framing} (μ={mu:.3f})')
 
     for i, scene in enumerate(scene_order):
         h = means[(means['Framing']=='Human') & (means['Scene']==scene)]['Score'].values
